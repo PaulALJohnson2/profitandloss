@@ -7,6 +7,8 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const parseCsvData = (csvText) => {
     const lines = csvText.split('\n');
@@ -96,13 +98,14 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
     return wagesData;
   };
 
-  const handleFileUpload = async (event) => {
+  const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     setImporting(true);
     setError(null);
     setResult(null);
+    setPreviewData(null);
 
     try {
       const text = await file.text();
@@ -112,11 +115,27 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
         throw new Error('No wage data found in CSV file');
       }
 
+      // Show preview
+      setPreviewData(wagesData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!previewData) return;
+
+    setUploading(true);
+    setError(null);
+
+    try {
       // Upload to Firebase
       let successCount = 0;
       let failCount = 0;
 
-      for (const wage of wagesData) {
+      for (const wage of previewData) {
         const uploadResult = await saveOrUpdateWages(
           currentUser.uid,
           year,
@@ -133,11 +152,13 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
       }
 
       setResult({
-        total: wagesData.length,
+        total: previewData.length,
         success: successCount,
         failed: failCount,
-        data: wagesData
+        data: previewData
       });
+
+      setPreviewData(null);
 
       if (onImportComplete) {
         onImportComplete();
@@ -145,7 +166,7 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
     } catch (err) {
       setError(err.message);
     } finally {
-      setImporting(false);
+      setUploading(false);
     }
   };
 
@@ -160,8 +181,8 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
         <input
           type="file"
           accept=".csv"
-          onChange={handleFileUpload}
-          disabled={importing}
+          onChange={handleFileSelect}
+          disabled={importing || uploading}
           style={{
             padding: '0.5rem',
             border: '1px solid #cbd5e0',
@@ -179,7 +200,93 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
           borderRadius: '4px',
           marginBottom: '1rem'
         }}>
-          ⏳ Importing wages data...
+          ⏳ Reading CSV file...
+        </div>
+      )}
+
+      {uploading && (
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#bee3f8',
+          color: '#2c5282',
+          borderRadius: '4px',
+          marginBottom: '1rem'
+        }}>
+          ⏳ Uploading wages data to Firebase...
+        </div>
+      )}
+
+      {previewData && !uploading && (
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#fff5e6',
+          border: '2px solid #f6ad55',
+          borderRadius: '4px',
+          marginBottom: '1rem'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+            📋 Preview - Ready to Upload
+          </div>
+          <div style={{ marginBottom: '1rem' }}>
+            Found {previewData.length} months of wage data. Review below and click Upload to save.
+          </div>
+
+          <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '1rem' }}>
+            <table style={{ width: '100%', fontSize: '0.875rem', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f7fafc', borderBottom: '2px solid #cbd5e0' }}>
+                  <th style={{ padding: '0.5rem', textAlign: 'left' }}>Month</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>Net Out</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>HMRC</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>Nest</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewData.map((wage, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '0.5rem' }}><strong>{wage.month}</strong></td>
+                    <td style={{ padding: '0.5rem', textAlign: 'right' }}>£{wage.netOut.toFixed(2)}</td>
+                    <td style={{ padding: '0.5rem', textAlign: 'right' }}>£{wage.hmrc.toFixed(2)}</td>
+                    <td style={{ padding: '0.5rem', textAlign: 'right' }}>£{wage.nest.toFixed(2)}</td>
+                    <td style={{ padding: '0.5rem', textAlign: 'right' }}><strong>£{wage.total.toFixed(2)}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button
+              onClick={handleUpload}
+              style={{
+                padding: '0.75rem 2rem',
+                backgroundColor: '#48bb78',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: 'bold'
+              }}
+            >
+              ✓ Upload to Firebase
+            </button>
+            <button
+              onClick={() => setPreviewData(null)}
+              style={{
+                padding: '0.75rem 2rem',
+                backgroundColor: '#e2e8f0',
+                color: '#4a5568',
+                border: '1px solid #cbd5e0',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '1rem'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
