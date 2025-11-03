@@ -3,7 +3,7 @@ import { saveOrUpdateWages } from '../firebase/firestoreService';
 import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
 
-function WagesForm({ onSave, year = '2024-25' }) {
+function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
   const { currentUser } = useAuth();
 
   // Define fiscal year month order
@@ -15,7 +15,7 @@ function WagesForm({ onSave, year = '2024-25' }) {
   ];
 
   const [formData, setFormData] = useState({
-    month: 'October',
+    month: initialMonth,
     netOut: '',
     invoices: '',
     hmrc: '',
@@ -26,6 +26,14 @@ function WagesForm({ onSave, year = '2024-25' }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+
+  // Update month when initialMonth changes
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      month: initialMonth
+    }));
+  }, [initialMonth]);
 
   // Calculate total
   const calculateTotal = () => {

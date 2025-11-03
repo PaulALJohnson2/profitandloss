@@ -56,6 +56,29 @@ function Wages({ year }) {
     fetchData();
   }, [currentUser, year]);
 
+  // Get the next available month (first month without data)
+  const getNextAvailableMonth = () => {
+    const fiscalYearMonthOrder = [
+      'October', 'November', 'December',
+      'January', 'February', 'March',
+      'April', 'May', 'June',
+      'July', 'August', 'September'
+    ];
+
+    // Get list of months that have data
+    const monthsWithData = new Set(data.map(d => d.month || d.id));
+
+    // Find first month without data
+    for (const month of fiscalYearMonthOrder) {
+      if (!monthsWithData.has(month)) {
+        return month;
+      }
+    }
+
+    // If all months have data, default to October
+    return 'October';
+  };
+
   const handleFormSave = () => {
     // Refresh data after saving
     if (currentUser) {
@@ -129,7 +152,7 @@ function Wages({ year }) {
         </button>
       </div>
 
-      {showForm && <WagesForm onSave={handleFormSave} year={year || '2024-25'} />}
+      {showForm && <WagesForm onSave={handleFormSave} year={year || '2024-25'} initialMonth={getNextAvailableMonth()} />}
 
       <div className="stats-grid">
         <div className="stat-card">
