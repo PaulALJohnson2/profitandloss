@@ -4,12 +4,14 @@ import { formatCurrency, getMonthName } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
 import { getAllWages } from '../firebase/firestoreService';
 import { getFiscalYearMonths } from '../utils/fiscalYearUtils';
+import WagesForm from '../components/WagesForm';
 
 function Wages({ year }) {
   const { currentUser } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -54,6 +56,37 @@ function Wages({ year }) {
     fetchData();
   }, [currentUser, year]);
 
+  const handleFormSave = () => {
+    // Refresh data after saving
+    if (currentUser) {
+      const fetchData = async () => {
+        const result = await getAllWages(currentUser.uid, year || '2024-25');
+        if (result.success) {
+          const fiscalYearMonthOrder = [
+            'October', 'November', 'December',
+            'January', 'February', 'March',
+            'April', 'May', 'June',
+            'July', 'August', 'September'
+          ];
+
+          const sortedData = result.data.sort((a, b) => {
+            const monthA = a.month || a.id;
+            const monthB = b.month || b.id;
+            let indexA = fiscalYearMonthOrder.indexOf(monthA);
+            let indexB = fiscalYearMonthOrder.indexOf(monthB);
+            if (indexA === -1) indexA = 999;
+            if (indexB === -1) indexB = 999;
+            return indexA - indexB;
+          });
+
+          setData(sortedData);
+        }
+      };
+      fetchData();
+    }
+    setShowForm(false);
+  };
+
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">Error: {error}</div>;
 
@@ -78,7 +111,25 @@ function Wages({ year }) {
 
   return (
     <div className="wages">
-      <h1>Wages Breakdown {year}</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <h1 style={{ margin: 0 }}>Wages Breakdown {year}</h1>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          style={{
+            padding: '0.75rem 1.5rem',
+            backgroundColor: '#667eea',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '1rem'
+          }}
+        >
+          {showForm ? 'Hide Form' : '+ Add Monthly Wages'}
+        </button>
+      </div>
+
+      {showForm && <WagesForm onSave={handleFormSave} year={year || '2024-25'} />}
 
       <div className="stats-grid">
         <div className="stat-card">
