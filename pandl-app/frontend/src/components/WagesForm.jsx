@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { saveOrUpdateWages } from '../firebase/firestoreService';
 import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
 
 function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
   const { currentUser } = useAuth();
+
+  // Refs for input fields
+  const netOutRef = useRef(null);
+  const invoicesRef = useRef(null);
+  const hmrcRef = useRef(null);
+  const nestRef = useRef(null);
+  const deductionsRef = useRef(null);
 
   // Define fiscal year month order
   const fiscalYearMonths = [
@@ -34,6 +41,26 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
       month: initialMonth
     }));
   }, [initialMonth]);
+
+  // Auto-focus netOut field when form opens
+  useEffect(() => {
+    if (netOutRef.current) {
+      netOutRef.current.focus();
+    }
+  }, []);
+
+  // Handle Enter key to move to next field
+  const handleKeyDown = (e, nextRef) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (nextRef && nextRef.current) {
+        nextRef.current.focus();
+      } else {
+        // On last field, submit the form
+        handleSubmit(e);
+      }
+    }
+  };
 
   // Calculate total
   const calculateTotal = () => {
@@ -165,10 +192,12 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
               Net Out (£)
             </label>
             <input
+              ref={netOutRef}
               type="number"
               name="netOut"
               value={formData.netOut}
               onChange={handleInputChange}
+              onKeyDown={(e) => handleKeyDown(e, invoicesRef)}
               step="0.01"
               placeholder="0.00"
               style={{
@@ -186,10 +215,12 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
               Invoices (£)
             </label>
             <input
+              ref={invoicesRef}
               type="number"
               name="invoices"
               value={formData.invoices}
               onChange={handleInputChange}
+              onKeyDown={(e) => handleKeyDown(e, hmrcRef)}
               step="0.01"
               placeholder="0.00"
               style={{
@@ -207,10 +238,12 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
               HMRC (£)
             </label>
             <input
+              ref={hmrcRef}
               type="number"
               name="hmrc"
               value={formData.hmrc}
               onChange={handleInputChange}
+              onKeyDown={(e) => handleKeyDown(e, nestRef)}
               step="0.01"
               placeholder="0.00"
               style={{
@@ -229,10 +262,12 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
               Nest (£)
             </label>
             <input
+              ref={nestRef}
               type="number"
               name="nest"
               value={formData.nest}
               onChange={handleInputChange}
+              onKeyDown={(e) => handleKeyDown(e, deductionsRef)}
               step="0.01"
               placeholder="0.00"
               style={{
@@ -250,10 +285,12 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
               Deductions (£)
             </label>
             <input
+              ref={deductionsRef}
               type="number"
               name="deductions"
               value={formData.deductions}
               onChange={handleInputChange}
+              onKeyDown={(e) => handleKeyDown(e, null)}
               step="0.01"
               placeholder="0.00"
               style={{
