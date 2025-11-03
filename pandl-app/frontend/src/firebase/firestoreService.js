@@ -13,6 +13,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from './config';
+import { getFiscalYearMonths } from '../utils/fiscalYearUtils';
 
 // ============================================
 // DAILY FIGURES
@@ -416,12 +417,7 @@ export async function calculateMonthlySummary(userId, year, month) {
 // Recalculate all monthly summaries for a year
 export async function recalculateAllMonthlySummaries(userId, year) {
   try {
-    const months = [
-      '2024-10', '2024-11', '2024-12',
-      '2025-01', '2025-02', '2025-03',
-      '2025-04', '2025-05', '2025-06',
-      '2025-07', '2025-08', '2025-09'
-    ];
+    const months = getFiscalYearMonths(year);
 
     for (const month of months) {
       await calculateMonthlySummary(userId, year, month);
@@ -430,6 +426,129 @@ export async function recalculateAllMonthlySummaries(userId, year) {
     return { success: true };
   } catch (error) {
     console.error('Error recalculating monthly summaries:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ============================================
+// FISCAL YEAR MANAGEMENT
+// ============================================
+
+/**
+ * Check if a fiscal year exists for a user
+ */
+export async function checkYearExists(userId, year) {
+  try {
+    // Check if the year document or any collection exists
+    const yearRef = doc(db, `users/${userId}/years/${year}`);
+    const yearDoc = await getDoc(yearRef);
+
+    // If year doc doesn't exist, check for any data in collections
+    if (!yearDoc.exists()) {
+      // Check daily figures collection
+      const dailyFiguresRef = collection(db, `users/${userId}/years/${year}/dailyFigures`);
+      const dailyFiguresSnapshot = await getDocs(query(dailyFiguresRef));
+
+      return { success: true, exists: !dailyFiguresSnapshot.empty };
+    }
+
+    return { success: true, exists: true };
+  } catch (error) {
+    console.error('Error checking if year exists:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get all available fiscal years for a user
+ */
+export async function getAllYears(userId) {
+  try {
+    const yearsSet = new Set();
+
+    // Method 1: Get years that have year documents
+    const yearsRef = collection(db, `users/${userId}/years`);
+    const yearsSnapshot = await getDocs(yearsRef);
+    yearsSnapshot.forEach((doc) => {
+      yearsSet.add(doc.id);
+    });
+
+    // Method 2: Check for years with data in subcollections
+    // Check common years that might exist without year documents
+    const potentialYears = ['2024-25', '2025-26', '2023-24', '2026-27'];
+
+    for (const year of potentialYears) {
+      if (!yearsSet.has(year)) {
+        // Check if this year has any daily figures
+        const dailyFiguresRef = collection(db, `users/${userId}/years/${year}/dailyFigures`);
+        const dailyFiguresSnapshot = await getDocs(query(dailyFiguresRef));
+
+        if (!dailyFiguresSnapshot.empty) {
+          yearsSet.add(year);
+          // Create the year document for it so it shows up next time
+          const yearRef = doc(db, `users/${userId}/years/${year}`);
+          await setDoc(yearRef, {
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+            year: year
+          }, { merge: true });
+        }
+      }
+    }
+
+    const years = Array.from(yearsSet);
+
+    // Sort years in descending order (most recent first)
+    years.sort((a, b) => {
+      const [yearA] = a.split('-');
+      const [yearB] = b.split('-');
+      return parseInt(yearB) - parseInt(yearA);
+    });
+
+    return { success: true, data: years };
+  } catch (error) {
+    console.error('Error getting all years:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Initialize a new fiscal year with metadata and copy fixed costs from previous year
+ */
+export async function initializeNewFiscalYear(userId, year, copyFromYear = null) {
+  try {
+    const batch = writeBatch(db);
+
+    // Create the year document with metadata
+    const yearRef = doc(db, `users/${userId}/years/${year}`);
+    batch.set(yearRef, {
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+      year: year
+    });
+
+    // If a previous year is provided, copy fixed costs
+    if (copyFromYear) {
+      const previousFixedCostsRef = collection(db, `users/${userId}/years/${copyFromYear}/fixedCosts`);
+      const previousFixedCostsSnapshot = await getDocs(previousFixedCostsRef);
+
+      // Copy each fixed cost to the new year
+      previousFixedCostsSnapshot.forEach((docSnapshot) => {
+        const fixedCostData = docSnapshot.data();
+        const newFixedCostRef = doc(db, `users/${userId}/years/${year}/fixedCosts/${docSnapshot.id}`);
+
+        batch.set(newFixedCostRef, {
+          ...fixedCostData,
+          updatedAt: Timestamp.now()
+        });
+      });
+    }
+
+    await batch.commit();
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error initializing new fiscal year:', error);
     return { success: false, error: error.message };
   }
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveOrUpdateDailyFigure, getDailyFigureByDate } from '../firebase/firestoreService';
 import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
+import { isDateInFiscalYear, getFiscalYearDates } from '../utils/fiscalYearUtils';
 
 function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
   const { currentUser } = useAuth();
@@ -43,6 +44,25 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
   const [existingRecord, setExistingRecord] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [calculatedValues, setCalculatedValues] = useState(null);
+  const [dateValidation, setDateValidation] = useState({ isValid: true, message: '' });
+
+  // Validate date against fiscal year
+  useEffect(() => {
+    if (formData.date && year) {
+      const dateIsValid = isDateInFiscalYear(formData.date, year);
+      if (!dateIsValid) {
+        const { startDate, endDate } = getFiscalYearDates(year);
+        const startDateStr = startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        const endDateStr = endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        setDateValidation({
+          isValid: false,
+          message: `Date must be within the fiscal year (${startDateStr} - ${endDateStr})`
+        });
+      } else {
+        setDateValidation({ isValid: true, message: '' });
+      }
+    }
+  }, [formData.date, year]);
 
   // Check if a record exists for the selected date
   useEffect(() => {
@@ -126,6 +146,12 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
 
     if (!currentUser) {
       setMessage({ type: 'error', text: 'You must be logged in to save daily figures' });
+      return;
+    }
+
+    // Validate date is within fiscal year
+    if (!dateValidation.isValid) {
+      setMessage({ type: 'error', text: dateValidation.message });
       return;
     }
 
@@ -214,8 +240,21 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
               value={formData.date}
               onChange={handleChange}
               required
-              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}
+              style={{
+                padding: '0.5rem',
+                borderRadius: '4px',
+                border: dateValidation.isValid ? '1px solid #cbd5e0' : '2px solid #f56565'
+              }}
             />
+            {!dateValidation.isValid && (
+              <div style={{
+                color: '#c53030',
+                fontSize: '0.875rem',
+                marginTop: '0.25rem'
+              }}>
+                {dateValidation.message}
+              </div>
+            )}
           </div>
 
           <div className="filter-group">

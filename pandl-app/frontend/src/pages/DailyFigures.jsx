@@ -1,18 +1,36 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import DailyFigureForm from '../components/DailyFigureForm';
 import { useAuth } from '../contexts/AuthContext';
 import { getAllDailyFigures } from '../firebase/firestoreService';
+import { getFiscalYearDates } from '../utils/fiscalYearUtils';
 
 function DailyFigures({ year }) {
   const { currentUser } = useAuth();
+  const location = useLocation();
   const [data, setData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [startDate, setStartDate] = useState('2024-10-01');
-  const [endDate, setEndDate] = useState('2025-09-30');
-  const [showForm, setShowForm] = useState(false);
+
+  // Calculate fiscal year dates dynamically
+  const fiscalYearDates = getFiscalYearDates(year || '2024-25');
+  const defaultStartDate = fiscalYearDates.startDate.toISOString().split('T')[0];
+  const defaultEndDate = fiscalYearDates.endDate.toISOString().split('T')[0];
+
+  const [startDate, setStartDate] = useState(defaultStartDate);
+  const [endDate, setEndDate] = useState(defaultEndDate);
+  const [showForm, setShowForm] = useState(location.state?.openForm || false);
+
+  // Update date filters when year changes
+  useEffect(() => {
+    const dates = getFiscalYearDates(year || '2024-25');
+    const newStartDate = dates.startDate.toISOString().split('T')[0];
+    const newEndDate = dates.endDate.toISOString().split('T')[0];
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+  }, [year]);
 
   useEffect(() => {
     fetchData();
