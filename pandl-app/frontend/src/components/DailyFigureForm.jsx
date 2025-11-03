@@ -7,6 +7,26 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
   const { currentUser } = useAuth();
   const today = new Date().toISOString().split('T')[0];
 
+  // Format date as "Monday 3rd November"
+  const formatDateDisplay = (dateString) => {
+    const date = new Date(dateString + 'T00:00:00');
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+    const dayName = days[date.getDay()];
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+
+    // Add ordinal suffix (1st, 2nd, 3rd, 4th, etc.)
+    const getOrdinal = (n) => {
+      const s = ['th', 'st', 'nd', 'rd'];
+      const v = n % 100;
+      return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    };
+
+    return `${dayName} ${getOrdinal(day)} ${month}`;
+  };
+
   const [formData, setFormData] = useState({
     date: initialDate || today,
     grossTotal: '',
@@ -214,51 +234,26 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
 
         </div>
 
-        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem' }}>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: loading ? '#ccc' : '#667eea',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontWeight: '500',
-              fontSize: '1rem'
-            }}
-          >
-            {loading ? 'Saving...' : existingRecord ? 'Update Daily Figure' : 'Add Daily Figure'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setFormData({
-                date: today,
-                grossTotal: '',
-                netTotal: '',
-                fee: '',
-                grossIncome: '',
-                netIncome: '',
-                vat: '',
-                abbiesPay: ''
-              });
-              setMessage({ type: '', text: '' });
-            }}
-            style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: '#e2e8f0',
-              color: '#4a5568',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: '500'
-            }}
-          >
-            Clear Form
-          </button>
+        <div style={{
+          marginTop: '1rem',
+          padding: '0.75rem',
+          backgroundColor: '#e6f7ff',
+          borderRadius: '4px',
+          border: '1px solid #91d5ff',
+          textAlign: 'center',
+          fontSize: '0.95rem',
+          color: '#0050b3',
+          fontWeight: '500'
+        }}>
+          Press <kbd style={{
+            padding: '0.25rem 0.5rem',
+            backgroundColor: 'white',
+            border: '1px solid #d9d9d9',
+            borderRadius: '3px',
+            fontFamily: 'monospace',
+            fontSize: '0.9rem',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+          }}>Enter</kbd> to {existingRecord ? 'update' : 'add'} daily figure
         </div>
       </form>
 
@@ -302,7 +297,7 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
               <div style={{ display: 'grid', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: 'white', borderRadius: '4px' }}>
                   <strong>Date:</strong>
-                  <span>{formData.date}</span>
+                  <span>{formatDateDisplay(formData.date)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: 'white', borderRadius: '4px' }}>
                   <strong>Gross Total:</strong>
