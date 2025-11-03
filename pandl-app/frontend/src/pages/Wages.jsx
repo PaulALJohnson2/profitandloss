@@ -56,7 +56,7 @@ function Wages({ year }) {
     fetchData();
   }, [currentUser, year]);
 
-  // Get the next available month (first month without data)
+  // Get the next available month (first month without netOut data)
   const getNextAvailableMonth = () => {
     const fiscalYearMonthOrder = [
       'October', 'November', 'December',
@@ -65,17 +65,22 @@ function Wages({ year }) {
       'July', 'August', 'September'
     ];
 
-    // Get list of months that have data
-    const monthsWithData = new Set(data.map(d => d.month || d.id));
+    // Get list of months that have netOut data (not 0 or empty)
+    const monthsWithNetOut = new Set();
+    data.forEach(d => {
+      if ((d.netOut || 0) > 0) {
+        monthsWithNetOut.add(d.month || d.id);
+      }
+    });
 
-    // Find first month without data
+    // Find first month without netOut amount
     for (const month of fiscalYearMonthOrder) {
-      if (!monthsWithData.has(month)) {
+      if (!monthsWithNetOut.has(month)) {
         return month;
       }
     }
 
-    // If all months have data, default to October
+    // If all months have netOut data, default to October
     return 'October';
   };
 
