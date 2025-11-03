@@ -28,6 +28,15 @@ export const formatMonth = (dateString) => {
 };
 
 export const getMonthName = (monthString) => {
+  if (!monthString) return '-';
+
+  // If it's in YYYY-MM format, parse it
+  if (monthString.includes('-')) {
+    const date = new Date(monthString + '-01');
+    return date.toLocaleDateString('en-GB', { month: 'long' });
+  }
+
+  // Otherwise, it's already a month name
   const months = {
     'October': 'October',
     'November': 'November',

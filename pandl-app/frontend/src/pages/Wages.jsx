@@ -144,7 +144,7 @@ function Wages({ year }) {
               </tr>
             </thead>
             <tbody>
-              {data.map((month, index) => (
+              {data.filter(month => month.total !== 0 || month.netOut !== 0).map((month, index) => (
                 <tr key={index}>
                   <td>{getMonthName(month.month)}</td>
                   <td className="currency">{formatCurrency(month.netOut)}</td>
