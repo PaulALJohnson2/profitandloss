@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { formatCurrency, getMonthName } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
 import { getAllWages } from '../firebase/firestoreService';
+import { getFiscalYearMonths } from '../utils/fiscalYearUtils';
 
 function Wages({ year }) {
   const { currentUser } = useAuth();
@@ -20,7 +21,33 @@ function Wages({ year }) {
 
       const result = await getAllWages(currentUser.uid, year || '2024-25');
       if (result.success) {
-        setData(result.data);
+        // Get all fiscal year months in correct order
+        const fiscalYearMonths = getFiscalYearMonths(year || '2024-25');
+
+        // Create a map of existing data
+        const dataMap = new Map();
+        result.data.forEach(item => {
+          dataMap.set(item.month, item);
+        });
+
+        // Fill in all months, using existing data or zeros
+        const sortedData = fiscalYearMonths.map(month => {
+          if (dataMap.has(month)) {
+            return dataMap.get(month);
+          } else {
+            return {
+              month,
+              netOut: 0,
+              invoices: 0,
+              hmrc: 0,
+              nest: 0,
+              deductions: 0,
+              total: 0
+            };
+          }
+        });
+
+        setData(sortedData);
       } else {
         setError(result.error);
       }
@@ -32,7 +59,6 @@ function Wages({ year }) {
 
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">Error: {error}</div>;
-  if (!data || data.length === 0) return <div className="error">No data available</div>;
 
   // Calculate totals
   const totals = data.reduce((acc, month) => ({
@@ -46,7 +72,7 @@ function Wages({ year }) {
 
   // Prepare chart data
   const chartData = data.map(month => ({
-    month: month.month,
+    month: getMonthName(month.month),
     'Net Out': month.netOut,
     'HMRC': Math.abs(month.hmrc || 0),
     'Nest': month.nest,
