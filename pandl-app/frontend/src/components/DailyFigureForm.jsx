@@ -233,28 +233,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
           </div>
 
         </div>
-
-        <div style={{
-          marginTop: '1rem',
-          padding: '0.75rem',
-          backgroundColor: '#e6f7ff',
-          borderRadius: '4px',
-          border: '1px solid #91d5ff',
-          textAlign: 'center',
-          fontSize: '0.95rem',
-          color: '#0050b3',
-          fontWeight: '500'
-        }}>
-          Press <kbd style={{
-            padding: '0.25rem 0.5rem',
-            backgroundColor: 'white',
-            border: '1px solid #d9d9d9',
-            borderRadius: '3px',
-            fontFamily: 'monospace',
-            fontSize: '0.9rem',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-          }}>Enter</kbd> to {existingRecord ? 'update' : 'add'} daily figure
-        </div>
       </form>
 
       {/* Confirmation Modal */}
