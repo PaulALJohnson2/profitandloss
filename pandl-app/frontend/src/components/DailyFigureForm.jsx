@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { saveOrUpdateDailyFigure, getDailyFigureByDate } from '../firebase/firestoreService';
 import { formatCurrency } from '../utils/formatters';
+import { useAuth } from '../contexts/AuthContext';
 
-function DailyFigureForm({ onSave, initialDate = null }) {
+function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
+  const { currentUser } = useAuth();
   const today = new Date().toISOString().split('T')[0];
 
   const [formData, setFormData] = useState({
@@ -23,8 +25,8 @@ function DailyFigureForm({ onSave, initialDate = null }) {
   // Check if a record exists for the selected date
   useEffect(() => {
     const checkExisting = async () => {
-      if (formData.date) {
-        const result = await getDailyFigureByDate(formData.date);
+      if (formData.date && currentUser) {
+        const result = await getDailyFigureByDate(currentUser.uid, year, formData.date);
         if (result.success && result.data) {
           setExistingRecord(result.data);
           // Pre-fill form with existing data
@@ -46,7 +48,7 @@ function DailyFigureForm({ onSave, initialDate = null }) {
       }
     };
     checkExisting();
-  }, [formData.date]);
+  }, [formData.date, currentUser, year]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -101,6 +103,12 @@ function DailyFigureForm({ onSave, initialDate = null }) {
     setLoading(true);
     setMessage({ type: '', text: '' });
 
+    if (!currentUser) {
+      setMessage({ type: 'error', text: 'You must be logged in to save daily figures' });
+      setLoading(false);
+      return;
+    }
+
     try {
       // Convert string values to numbers
       const dataToSave = {
@@ -113,7 +121,7 @@ function DailyFigureForm({ onSave, initialDate = null }) {
         abbiesPay: parseFloat(formData.abbiesPay) || 0
       };
 
-      const result = await saveOrUpdateDailyFigure(formData.date, dataToSave);
+      const result = await saveOrUpdateDailyFigure(currentUser.uid, year, formData.date, dataToSave);
 
       if (result.success) {
         setMessage({

@@ -80,7 +80,7 @@ function DailyFigures({ year }) {
         </button>
       </div>
 
-      {showForm && <DailyFigureForm onSave={handleFormSave} />}
+      {showForm && <DailyFigureForm onSave={handleFormSave} year={year || '2024-25'} />}
 
       <div className="card">
         <div className="filters">
