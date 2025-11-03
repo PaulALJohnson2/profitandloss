@@ -46,6 +46,12 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
 
+      // Check for summary sections (skip these)
+      if (line.includes('Summary') || line.includes('Months') && line.includes('to')) {
+        currentMonth = null; // Reset to avoid picking up summary totals
+        continue;
+      }
+
       // Check for month headers
       if (line.includes('Month') && line.includes('Ending')) {
         // Extract month from header like "Month 1 - Ending 30 April, 2025"
@@ -55,7 +61,7 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
         }
       }
 
-      // Check for TOTAL rows
+      // Check for TOTAL rows (but only if we have a current month set)
       if (line.startsWith('TOTAL') && currentMonth) {
         // Parse the total row properly
         const parts = parseCsvLine(line);
