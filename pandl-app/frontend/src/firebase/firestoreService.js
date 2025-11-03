@@ -517,6 +517,7 @@ export async function getAllYears(userId) {
  */
 export async function initializeNewFiscalYear(userId, year, copyFromYear = null) {
   try {
+    console.log(`Creating new fiscal year ${year}...`);
     const batch = writeBatch(db);
 
     // Create the year document with metadata
@@ -526,13 +527,22 @@ export async function initializeNewFiscalYear(userId, year, copyFromYear = null)
       updatedAt: Timestamp.now(),
       year: year
     });
+    console.log(`Year document prepared for ${year}`);
 
     // If a previous year is provided, copy fixed costs
     if (copyFromYear) {
+      console.log(`Attempting to copy fixed costs from ${copyFromYear} to ${year}...`);
       const previousFixedCostsRef = collection(db, `users/${userId}/years/${copyFromYear}/fixedCosts`);
       const previousFixedCostsSnapshot = await getDocs(previousFixedCostsRef);
 
+      console.log(`Found ${previousFixedCostsSnapshot.size} fixed costs in ${copyFromYear}`);
+
+      if (previousFixedCostsSnapshot.empty) {
+        console.warn(`No fixed costs found in ${copyFromYear} to copy`);
+      }
+
       // Copy each fixed cost to the new year
+      let copiedCount = 0;
       previousFixedCostsSnapshot.forEach((docSnapshot) => {
         const fixedCostData = docSnapshot.data();
         const newFixedCostRef = doc(db, `users/${userId}/years/${year}/fixedCosts/${docSnapshot.id}`);
@@ -541,10 +551,18 @@ export async function initializeNewFiscalYear(userId, year, copyFromYear = null)
           ...fixedCostData,
           updatedAt: Timestamp.now()
         });
+        copiedCount++;
+        console.log(`Copying fixed cost: ${docSnapshot.id}`);
       });
+
+      console.log(`Prepared ${copiedCount} fixed costs for batch write`);
+    } else {
+      console.log('No previous year specified, skipping fixed costs copy');
     }
 
+    console.log('Committing batch write...');
     await batch.commit();
+    console.log(`Successfully created fiscal year ${year} with copied fixed costs`);
 
     return { success: true };
   } catch (error) {

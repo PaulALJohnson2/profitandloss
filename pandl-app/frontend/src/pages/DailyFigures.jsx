@@ -4,7 +4,7 @@ import { formatCurrency, formatDate } from '../utils/formatters';
 import DailyFigureForm from '../components/DailyFigureForm';
 import { useAuth } from '../contexts/AuthContext';
 import { getAllDailyFigures } from '../firebase/firestoreService';
-import { getFiscalYearDates } from '../utils/fiscalYearUtils';
+import { getFiscalYearDates, isPastFiscalYearEnd, getFiscalYearMonths } from '../utils/fiscalYearUtils';
 
 function DailyFigures({ year }) {
   const { currentUser } = useAuth();
@@ -63,8 +63,42 @@ function DailyFigures({ year }) {
     setShowForm(false);
   };
 
+  const handleMonthFilter = (monthString) => {
+    // monthString is in format "YYYY-MM"
+    const [yearNum, monthNum] = monthString.split('-');
+    // Get the last day of the month
+    const lastDay = new Date(parseInt(yearNum), parseInt(monthNum), 0).getDate();
+    const monthStart = `${monthString}-01`;
+    const monthEnd = `${monthString}-${String(lastDay).padStart(2, '0')}`;
+
+    setStartDate(monthStart);
+    setEndDate(monthEnd);
+
+    // No need to call fetchData() - the useEffect will handle it automatically
+  };
+
+  const handleResetFilter = () => {
+    const fiscalYearDates = getFiscalYearDates(year || '2024-25');
+    setStartDate(fiscalYearDates.startDate.toISOString().split('T')[0]);
+    setEndDate(fiscalYearDates.endDate.toISOString().split('T')[0]);
+  };
+
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">Error: {error}</div>;
+
+  // Check if fiscal year is complete
+  const isFiscalYearComplete = isPastFiscalYearEnd(year || '2024-25');
+
+  // Get the default date for the form
+  const getDefaultFormDate = () => {
+    if (isFiscalYearComplete) {
+      // If year is complete, default to first day of fiscal year (October 1st)
+      const fiscalYearDates = getFiscalYearDates(year || '2024-25');
+      return fiscalYearDates.startDate.toISOString().split('T')[0];
+    }
+    // Otherwise default to today
+    return null;
+  };
 
   // Calculate totals
   const totals = filteredData.reduce((acc, day) => ({
@@ -94,41 +128,104 @@ function DailyFigures({ year }) {
             fontSize: '1rem'
           }}
         >
-          {showForm ? 'Hide Form' : '+ Add Daily Figure'}
+          {showForm ? 'Hide Form' : (isFiscalYearComplete ? 'Edit Past Figure' : '+ Add Daily Figure')}
         </button>
       </div>
 
-      {showForm && <DailyFigureForm onSave={handleFormSave} year={year || '2024-25'} />}
+      {showForm && <DailyFigureForm onSave={handleFormSave} year={year || '2024-25'} initialDate={getDefaultFormDate()} />}
 
       <div className="card">
-        <div className="filters">
-          <div className="filter-group">
-            <label>Start Date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+          {/* Month Quick Filters */}
+          <div style={{ flex: '1', minWidth: '200px' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Quick Filter by Month</label>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '0.5rem'
+            }}>
+              {getFiscalYearMonths(year || '2024-25').map(month => {
+                const monthDate = new Date(month + '-01');
+                const monthName = monthDate.toLocaleDateString('en-GB', { month: 'short' });
+                const isActive = startDate.startsWith(month);
+
+                return (
+                  <button
+                    key={month}
+                    onClick={() => handleMonthFilter(month)}
+                    style={{
+                      padding: '0.5rem',
+                      backgroundColor: isActive ? '#667eea' : '#f7fafc',
+                      color: isActive ? 'white' : '#4a5568',
+                      border: isActive ? 'none' : '1px solid #e2e8f0',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      fontWeight: isActive ? '600' : '500',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.target.style.backgroundColor = '#edf2f7';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.target.style.backgroundColor = '#f7fafc';
+                      }
+                    }}
+                  >
+                    {monthName}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="filter-group">
-            <label>End Date</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
+
+          {/* Date Range Filters */}
+          <div style={{ flex: '1', minWidth: '300px' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Custom Date Range</label>
+            <div className="filters">
+              <div className="filter-group">
+                <label>Start Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="filter-group">
+                <label>End Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+              <button onClick={handleFilter} style={{
+                padding: '0.5rem 1.5rem',
+                backgroundColor: '#667eea',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                marginTop: 'auto'
+              }}>
+                Apply Filter
+              </button>
+              <button onClick={handleResetFilter} style={{
+                padding: '0.5rem 1.5rem',
+                backgroundColor: '#e2e8f0',
+                color: '#4a5568',
+                border: '1px solid #cbd5e0',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                marginTop: 'auto'
+              }}>
+                Reset Filter
+              </button>
+            </div>
           </div>
-          <button onClick={handleFilter} style={{
-            padding: '0.5rem 1.5rem',
-            backgroundColor: '#667eea',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            marginTop: 'auto'
-          }}>
-            Apply Filter
-          </button>
         </div>
       </div>
 

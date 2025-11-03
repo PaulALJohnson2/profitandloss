@@ -15,10 +15,19 @@ const NewYearModal = ({ currentYear, userId, onYearCreated, onClose }) => {
 
     try {
       // Pass the current year so fixed costs can be copied from it
-      await initializeNewFiscalYear(userId, nextYear, currentYear);
-      onYearCreated(nextYear);
+      console.log(`NewYearModal: Creating year ${nextYear} from ${currentYear}`);
+      const result = await initializeNewFiscalYear(userId, nextYear, currentYear);
+
+      if (result.success) {
+        console.log('NewYearModal: Year created successfully');
+        onYearCreated(nextYear);
+      } else {
+        console.error('NewYearModal: Failed to create year:', result.error);
+        setError(`Failed to create new fiscal year: ${result.error}`);
+        setIsCreating(false);
+      }
     } catch (err) {
-      console.error('Error creating new fiscal year:', err);
+      console.error('NewYearModal: Error creating new fiscal year:', err);
       setError('Failed to create new fiscal year. Please try again.');
       setIsCreating(false);
     }

@@ -2,11 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { saveOrUpdateDailyFigure, getDailyFigureByDate } from '../firebase/firestoreService';
 import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
-import { isDateInFiscalYear, getFiscalYearDates } from '../utils/fiscalYearUtils';
+import { isDateInFiscalYear, getFiscalYearDates, isPastFiscalYearEnd } from '../utils/fiscalYearUtils';
 
 function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
   const { currentUser } = useAuth();
   const today = new Date().toISOString().split('T')[0];
+
+  // Determine the default date to use
+  const getDefaultDate = () => {
+    if (initialDate) {
+      return initialDate;
+    }
+    // If fiscal year is complete, default to first day of that year
+    if (isPastFiscalYearEnd(year)) {
+      const fiscalYearDates = getFiscalYearDates(year);
+      return fiscalYearDates.startDate.toISOString().split('T')[0];
+    }
+    return today;
+  };
+
+  const defaultDate = getDefaultDate();
 
   // Format date as "Monday 3rd November"
   const formatDateDisplay = (dateString) => {
@@ -29,7 +44,7 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
   };
 
   const [formData, setFormData] = useState({
-    date: initialDate || today,
+    date: defaultDate,
     grossTotal: '',
     netTotal: '',
     fee: '',
@@ -182,7 +197,7 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
         // Reset form after a delay
         setTimeout(() => {
           setFormData({
-            date: today,
+            date: defaultDate,
             grossTotal: '',
             netTotal: '',
             fee: '',
