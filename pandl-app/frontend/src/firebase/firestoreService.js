@@ -330,14 +330,26 @@ export async function getAllMonthlySummaries(userId, year) {
       summaries.push({ id: doc.id, ...doc.data() });
     });
 
-    // Sort by month
-    summaries.sort((a, b) => {
+    // Deduplicate by month, keeping the most recently updated entry
+    const monthMap = new Map();
+    summaries.forEach((summary) => {
+      const existingSummary = monthMap.get(summary.month);
+      if (!existingSummary ||
+          (summary.updatedAt && existingSummary.updatedAt &&
+           summary.updatedAt.toMillis() > existingSummary.updatedAt.toMillis())) {
+        monthMap.set(summary.month, summary);
+      }
+    });
+
+    // Convert map back to array and sort by month
+    const uniqueSummaries = Array.from(monthMap.values());
+    uniqueSummaries.sort((a, b) => {
       if (a.month < b.month) return -1;
       if (a.month > b.month) return 1;
       return 0;
     });
 
-    return { success: true, data: summaries };
+    return { success: true, data: uniqueSummaries };
   } catch (error) {
     console.error('Error getting monthly summaries:', error);
     return { success: false, error: error.message };
@@ -426,6 +438,38 @@ export async function recalculateAllMonthlySummaries(userId, year) {
     return { success: true };
   } catch (error) {
     console.error('Error recalculating monthly summaries:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Clean up and rebuild all monthly summaries (removes duplicates)
+export async function cleanupAndRebuildMonthlySummaries(userId, year) {
+  try {
+    console.log(`Cleaning up monthly summaries for ${year}...`);
+
+    // Delete all existing monthly summaries
+    const collectionRef = collection(db, `users/${userId}/years/${year}/monthlySummaries`);
+    const querySnapshot = await getDocs(collectionRef);
+
+    const batch = writeBatch(db);
+    let deleteCount = 0;
+
+    querySnapshot.forEach((docSnapshot) => {
+      batch.delete(docSnapshot.ref);
+      deleteCount++;
+    });
+
+    await batch.commit();
+    console.log(`Deleted ${deleteCount} monthly summary documents`);
+
+    // Recalculate all monthly summaries
+    console.log('Recalculating monthly summaries...');
+    await recalculateAllMonthlySummaries(userId, year);
+
+    console.log('Monthly summaries cleanup and rebuild complete');
+    return { success: true, deletedCount: deleteCount };
+  } catch (error) {
+    console.error('Error cleaning up monthly summaries:', error);
     return { success: false, error: error.message };
   }
 }
