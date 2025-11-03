@@ -24,29 +24,14 @@ function Wages({ year }) {
         // Get all fiscal year months in correct order
         const fiscalYearMonths = getFiscalYearMonths(year || '2024-25');
 
-        // Create a map of existing data
-        const dataMap = new Map();
-        result.data.forEach(item => {
-          dataMap.set(item.month, item);
+        // Sort the data by fiscal year month order
+        const sortedData = result.data.sort((a, b) => {
+          const indexA = fiscalYearMonths.indexOf(a.month);
+          const indexB = fiscalYearMonths.indexOf(b.month);
+          return indexA - indexB;
         });
 
-        // Fill in all months, using existing data or zeros
-        const sortedData = fiscalYearMonths.map(month => {
-          if (dataMap.has(month)) {
-            return dataMap.get(month);
-          } else {
-            return {
-              month,
-              netOut: 0,
-              invoices: 0,
-              hmrc: 0,
-              nest: 0,
-              deductions: 0,
-              total: 0
-            };
-          }
-        });
-
+        console.log('Sorted wages data:', sortedData);
         setData(sortedData);
       } else {
         setError(result.error);
@@ -144,7 +129,7 @@ function Wages({ year }) {
               </tr>
             </thead>
             <tbody>
-              {data.filter(month => month.total !== 0 || month.netOut !== 0).map((month, index) => (
+              {data.map((month, index) => (
                 <tr key={index}>
                   <td>{getMonthName(month.month)}</td>
                   <td className="currency">{formatCurrency(month.netOut)}</td>
