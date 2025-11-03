@@ -542,12 +542,12 @@ export async function getAllYears(userId) {
 
     const years = Array.from(yearsSet);
 
-    // Sort years in descending order (most recent first)
+    // Sort years in ascending order (oldest first)
     years.sort((a, b) => {
       const [yearA] = a.split('-');
       const [yearB] = b.split('-');
       return parseInt(yearA) - parseInt(yearB);
-    }).reverse();
+    });
 
     return { success: true, data: years };
   } catch (error) {
