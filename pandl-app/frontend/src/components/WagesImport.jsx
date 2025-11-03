@@ -13,6 +13,34 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
     const wagesData = [];
     let currentMonth = null;
 
+    // Helper to parse CSV line respecting quotes
+    const parseCsvLine = (line) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current);
+      return result;
+    };
+
+    // Remove quotes and commas from numbers
+    const cleanNumber = (str) => {
+      if (!str) return 0;
+      return parseFloat(str.replace(/"/g, '').replace(/,/g, '')) || 0;
+    };
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
 
@@ -27,17 +55,12 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
 
       // Check for TOTAL rows
       if (line.startsWith('TOTAL') && currentMonth) {
-        // Parse the total row
-        const parts = line.split(',');
-
-        // Remove quotes and commas from numbers
-        const cleanNumber = (str) => {
-          if (!str) return 0;
-          return parseFloat(str.replace(/"/g, '').replace(/,/g, '')) || 0;
-        };
+        // Parse the total row properly
+        const parts = parseCsvLine(line);
 
         // Extract values based on CSV structure
         // Format: Name,Surname,Gross Pay,Taxable gross,Tax,NIC-able gross,Employee NICs,Student + Postgrad Loan deduction,Net pay,Take-home pay,Employer NICs,Employer pension,Cost to employer
+        // Index:   0    1       2          3             4    5             6             7                                 8        9            10            11                12
         const tax = cleanNumber(parts[4]);
         const employeeNICs = cleanNumber(parts[6]);
         const takeHomePay = cleanNumber(parts[9]);
@@ -56,6 +79,16 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
           nest: employerPension,
           deductions: 0, // Not in CSV
           total: costToEmployer
+        });
+
+        console.log(`Parsed ${currentMonth}:`, {
+          tax,
+          employeeNICs,
+          employerNICs,
+          takeHomePay,
+          employerPension,
+          costToEmployer,
+          hmrc
         });
       }
     }
