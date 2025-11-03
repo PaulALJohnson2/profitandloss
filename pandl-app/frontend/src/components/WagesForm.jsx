@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { saveOrUpdateWages } from '../firebase/firestoreService';
+import { saveOrUpdateWages, getWagesByMonth } from '../firebase/firestoreService';
 import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -33,6 +33,8 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [existingRecord, setExistingRecord] = useState(null);
+  const [message, setMessage] = useState({ type: '', text: '' });
 
   // Update month when initialMonth changes
   useEffect(() => {
@@ -41,6 +43,41 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
       month: initialMonth
     }));
   }, [initialMonth]);
+
+  // Check if wages exist for the selected month
+  useEffect(() => {
+    const checkExisting = async () => {
+      if (formData.month && currentUser) {
+        const result = await getWagesByMonth(currentUser.uid, year, formData.month);
+        if (result.success && result.data) {
+          setExistingRecord(result.data);
+          // Pre-fill form with existing data
+          setFormData({
+            month: formData.month,
+            netOut: result.data.netOut || '',
+            invoices: result.data.invoices || '',
+            hmrc: result.data.hmrc || '',
+            nest: result.data.nest || '',
+            deductions: result.data.deductions || ''
+          });
+          setMessage({ type: 'info', text: 'Existing record found - editing mode' });
+        } else {
+          setExistingRecord(null);
+          setMessage({ type: '', text: '' });
+          // Reset fields except month
+          setFormData(prev => ({
+            month: prev.month,
+            netOut: '',
+            invoices: '',
+            hmrc: '',
+            nest: '',
+            deductions: ''
+          }));
+        }
+      }
+    };
+    checkExisting();
+  }, [formData.month, currentUser, year]);
 
   // Auto-focus netOut field when form opens
   useEffect(() => {
@@ -137,6 +174,19 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
   return (
     <div className="card" style={{ marginBottom: '2rem' }}>
       <h2>Enter Monthly Wages</h2>
+
+      {message.text && message.type === 'info' && (
+        <div style={{
+          padding: '1rem',
+          backgroundColor: '#bee3f8',
+          color: '#2c5282',
+          borderRadius: '4px',
+          marginBottom: '1rem',
+          fontWeight: '500'
+        }}>
+          ℹ️ {message.text}
+        </div>
+      )}
 
       {error && (
         <div style={{

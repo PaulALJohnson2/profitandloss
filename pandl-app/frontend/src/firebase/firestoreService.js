@@ -108,6 +108,22 @@ export async function saveOrUpdateWages(userId, year, month, data) {
   }
 }
 
+export async function getWagesByMonth(userId, year, month) {
+  try {
+    const docRef = doc(db, `users/${userId}/years/${year}/wages/${month}`);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      return { success: true, data: { id: docSnap.id, ...docSnap.data() } };
+    } else {
+      return { success: true, data: null };
+    }
+  } catch (error) {
+    console.error('Error getting wages by month:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getAllWages(userId, year) {
   try {
     const collectionRef = collection(db, `users/${userId}/years/${year}/wages`);
