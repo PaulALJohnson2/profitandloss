@@ -546,8 +546,8 @@ export async function getAllYears(userId) {
     years.sort((a, b) => {
       const [yearA] = a.split('-');
       const [yearB] = b.split('-');
-      return parseInt(yearB) - parseInt(yearA);
-    });
+      return parseInt(yearA) - parseInt(yearB);
+    }).reverse();
 
     return { success: true, data: years };
   } catch (error) {
