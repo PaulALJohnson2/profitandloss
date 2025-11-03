@@ -21,17 +21,29 @@ function Wages({ year }) {
 
       const result = await getAllWages(currentUser.uid, year || '2024-25');
       if (result.success) {
-        // Get all fiscal year months in correct order
-        const fiscalYearMonths = getFiscalYearMonths(year || '2024-25');
+        // Define fiscal year month order by name
+        const fiscalYearMonthOrder = [
+          'October', 'November', 'December',
+          'January', 'February', 'March',
+          'April', 'May', 'June',
+          'July', 'August', 'September'
+        ];
 
         // Sort the data by fiscal year month order
         const sortedData = result.data.sort((a, b) => {
-          const indexA = fiscalYearMonths.indexOf(a.month);
-          const indexB = fiscalYearMonths.indexOf(b.month);
+          const monthA = a.month || a.id;
+          const monthB = b.month || b.id;
+
+          let indexA = fiscalYearMonthOrder.indexOf(monthA);
+          let indexB = fiscalYearMonthOrder.indexOf(monthB);
+
+          // If still not found, default to end of list
+          if (indexA === -1) indexA = 999;
+          if (indexB === -1) indexB = 999;
+
           return indexA - indexB;
         });
 
-        console.log('Sorted wages data:', sortedData);
         setData(sortedData);
       } else {
         setError(result.error);
