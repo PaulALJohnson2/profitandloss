@@ -12,6 +12,7 @@ function YearOnYear({ year }) {
   const [yearData, setYearData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [recalculating, setRecalculating] = useState(false);
 
   // Fetch available years
   useEffect(() => {
@@ -43,9 +44,14 @@ function YearOnYear({ year }) {
       for (const year of selectedYears) {
         const result = await getAllMonthlySummaries(currentUser.uid, year);
         if (result.success) {
-          // If no monthly summaries exist, try to recalculate them
-          if (result.data.length === 0) {
-            console.log(`No monthly summaries found for ${year}, attempting to recalculate...`);
+          // Check if summaries are empty or all zeros
+          const hasData = result.data.length > 0 && result.data.some(m =>
+            (m.netIncome || 0) > 0 || (m.profit || 0) > 0 || (m.wages || 0) > 0
+          );
+
+          // If no monthly summaries exist or they're all zeros, try to recalculate them
+          if (!hasData) {
+            console.log(`No data found for ${year}, attempting to recalculate...`);
             await recalculateAllMonthlySummaries(currentUser.uid, year);
 
             // Fetch again after recalculation
@@ -71,6 +77,34 @@ function YearOnYear({ year }) {
       setSelectedYears(selectedYears.filter(y => y !== year));
     } else {
       setSelectedYears([...selectedYears, year]);
+    }
+  };
+
+  const handleRecalculateAll = async () => {
+    if (!currentUser || selectedYears.length === 0) return;
+
+    setRecalculating(true);
+    try {
+      for (const year of selectedYears) {
+        console.log(`Recalculating monthly summaries for ${year}...`);
+        await recalculateAllMonthlySummaries(currentUser.uid, year);
+      }
+
+      // Refresh data after recalculation
+      const data = {};
+      for (const year of selectedYears) {
+        const result = await getAllMonthlySummaries(currentUser.uid, year);
+        if (result.success) {
+          data[year] = result.data;
+        }
+      }
+      setYearData(data);
+      console.log('Recalculation complete!');
+    } catch (err) {
+      console.error('Error recalculating:', err);
+      setError('Failed to recalculate monthly summaries');
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -154,7 +188,26 @@ function YearOnYear({ year }) {
 
       {/* Year Selection */}
       <div className="card">
-        <h2>Select Years to Compare</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0 }}>Select Years to Compare</h2>
+          {selectedYears.length > 0 && (
+            <button
+              onClick={handleRecalculateAll}
+              disabled={recalculating}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: recalculating ? '#cbd5e0' : '#667eea',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: recalculating ? 'not-allowed' : 'pointer',
+                fontSize: '0.9rem'
+              }}
+            >
+              {recalculating ? 'Recalculating...' : 'Recalculate Data'}
+            </button>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           {availableYears.map(year => (
             <label key={year} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
