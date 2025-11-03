@@ -87,12 +87,12 @@ function DailyFigureForm({ onSave, initialDate = null }) {
 
     setFormData(prev => ({
       ...prev,
-      fee: fee.toFixed(3),
+      fee: fee.toFixed(2),
       abbiesPay: abbiesPay.toFixed(2),
-      netTotal: netTotal.toFixed(6),
-      grossIncome: grossIncome.toFixed(4),
-      netIncome: netIncome.toFixed(6),
-      vat: vat.toFixed(6)
+      netTotal: netTotal.toFixed(2),
+      grossIncome: grossIncome.toFixed(2),
+      netIncome: netIncome.toFixed(2),
+      vat: vat.toFixed(2)
     }));
   };
 
