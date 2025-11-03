@@ -21,6 +21,8 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [existingRecord, setExistingRecord] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [calculatedValues, setCalculatedValues] = useState(null);
 
   // Check if a record exists for the selected date
   useEffect(() => {
@@ -58,17 +60,17 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
     }));
   };
 
-  // Auto-calculate related fields
-  const autoCalculate = () => {
-    const grossTotal = parseFloat(formData.grossTotal) || 0;
+  // Calculate all related fields
+  const calculateValues = (grossTotal, date) => {
+    const gross = parseFloat(grossTotal) || 0;
 
     // Calculate Fee using exact spreadsheet formula: =SUM((B2*0.72)/1.2)
-    const fee = (grossTotal * 0.72) / 1.2;
+    const fee = (gross * 0.72) / 1.2;
 
     // Calculate Abbie's Pay (£455.37 if Friday, otherwise 0)
     let abbiesPay = 0;
-    if (formData.date) {
-      const selectedDate = new Date(formData.date);
+    if (date) {
+      const selectedDate = new Date(date);
       const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 5 = Friday
       if (dayOfWeek === 5) { // Friday
         abbiesPay = 455.37;
@@ -76,10 +78,10 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
     }
 
     // Calculate Net Total (Gross Total / 1.2)
-    const netTotal = grossTotal / 1.2;
+    const netTotal = gross / 1.2;
 
     // Calculate Gross Income (Gross Total - Fee)
-    const grossIncome = grossTotal - fee;
+    const grossIncome = gross - fee;
 
     // Calculate Net Income (Gross Income / 1.2)
     const netIncome = grossIncome / 1.2;
@@ -87,41 +89,38 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
     // Calculate VAT (Gross Income - Net Income)
     const vat = grossIncome - netIncome;
 
-    setFormData(prev => ({
-      ...prev,
-      fee: fee.toFixed(2),
-      abbiesPay: abbiesPay.toFixed(2),
-      netTotal: netTotal.toFixed(2),
-      grossIncome: grossIncome.toFixed(2),
-      netIncome: netIncome.toFixed(2),
-      vat: vat.toFixed(2)
-    }));
+    return {
+      grossTotal: gross,
+      fee: parseFloat(fee.toFixed(2)),
+      abbiesPay: parseFloat(abbiesPay.toFixed(2)),
+      netTotal: parseFloat(netTotal.toFixed(2)),
+      grossIncome: parseFloat(grossIncome.toFixed(2)),
+      netIncome: parseFloat(netIncome.toFixed(2)),
+      vat: parseFloat(vat.toFixed(2))
+    };
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setMessage({ type: '', text: '' });
 
     if (!currentUser) {
       setMessage({ type: 'error', text: 'You must be logged in to save daily figures' });
-      setLoading(false);
       return;
     }
 
-    try {
-      // Convert string values to numbers
-      const dataToSave = {
-        grossTotal: parseFloat(formData.grossTotal) || 0,
-        netTotal: parseFloat(formData.netTotal) || 0,
-        fee: parseFloat(formData.fee) || 0,
-        grossIncome: parseFloat(formData.grossIncome) || 0,
-        netIncome: parseFloat(formData.netIncome) || 0,
-        vat: parseFloat(formData.vat) || 0,
-        abbiesPay: parseFloat(formData.abbiesPay) || 0
-      };
+    // Calculate all values
+    const calculated = calculateValues(formData.grossTotal, formData.date);
+    setCalculatedValues(calculated);
+    setShowConfirmation(true);
+  };
 
-      const result = await saveOrUpdateDailyFigure(currentUser.uid, year, formData.date, dataToSave);
+  const handleConfirmSave = async () => {
+    setLoading(true);
+    setShowConfirmation(false);
+
+    try {
+      const result = await saveOrUpdateDailyFigure(currentUser.uid, year, formData.date, calculatedValues);
 
       if (result.success) {
         setMessage({
@@ -213,116 +212,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
             />
           </div>
 
-          <div className="filter-group">
-            <label>Fee (Auto-calculated)</label>
-            <input
-              type="number"
-              name="fee"
-              value={formData.fee}
-              onChange={handleChange}
-              step="0.01"
-              placeholder="Auto-calculated"
-              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: '#f7fafc' }}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Abbie's Pay (£455.37 on Fridays)</label>
-            <input
-              type="number"
-              name="abbiesPay"
-              value={formData.abbiesPay}
-              onChange={handleChange}
-              step="0.01"
-              placeholder="Auto-calculated"
-              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0', backgroundColor: '#f7fafc' }}
-            />
-          </div>
-
-        </div>
-
-        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
-          <button
-            type="button"
-            onClick={autoCalculate}
-            style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: '#48bb78',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: '500'
-            }}
-          >
-            Auto-Calculate Values
-          </button>
-        </div>
-
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '1rem',
-          marginTop: '1.5rem',
-          padding: '1rem',
-          backgroundColor: '#f7fafc',
-          borderRadius: '4px'
-        }}>
-          <h3 style={{ gridColumn: '1 / -1', margin: 0, fontSize: '1rem', color: '#4a5568' }}>
-            Calculated Values (or enter manually)
-          </h3>
-
-          <div className="filter-group">
-            <label>Net Total</label>
-            <input
-              type="number"
-              name="netTotal"
-              value={formData.netTotal}
-              onChange={handleChange}
-              step="0.01"
-              placeholder="Auto-calculated"
-              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Gross Income</label>
-            <input
-              type="number"
-              name="grossIncome"
-              value={formData.grossIncome}
-              onChange={handleChange}
-              step="0.01"
-              placeholder="Auto-calculated"
-              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>Net Income</label>
-            <input
-              type="number"
-              name="netIncome"
-              value={formData.netIncome}
-              onChange={handleChange}
-              step="0.01"
-              placeholder="Auto-calculated"
-              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>VAT</label>
-            <input
-              type="number"
-              name="vat"
-              value={formData.vat}
-              onChange={handleChange}
-              step="0.01"
-              placeholder="Auto-calculated"
-              style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #cbd5e0' }}
-            />
-          </div>
         </div>
 
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem' }}>
@@ -340,7 +229,7 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
               fontSize: '1rem'
             }}
           >
-            {loading ? 'Saving...' : existingRecord ? 'Update' : 'Save'} Daily Figure
+            {loading ? 'Saving...' : existingRecord ? 'Update Daily Figure' : 'Add Daily Figure'}
           </button>
 
           <button
@@ -371,25 +260,114 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
             Clear Form
           </button>
         </div>
-
-        <div style={{
-          marginTop: '1rem',
-          padding: '0.75rem',
-          backgroundColor: '#fef3c7',
-          borderRadius: '4px',
-          fontSize: '0.875rem'
-        }}>
-          <strong>Auto-calculate formulas:</strong>
-          <ul style={{ marginTop: '0.5rem', marginBottom: 0, paddingLeft: '1.5rem' }}>
-            <li><strong>Fee</strong> = (Gross Total × 0.72) ÷ 1.2</li>
-            <li><strong>Abbie's Pay</strong> = £455.37 if Friday, otherwise £0</li>
-            <li><strong>Net Total</strong> = Gross Total ÷ 1.2</li>
-            <li><strong>Gross Income</strong> = Gross Total - Fee</li>
-            <li><strong>Net Income</strong> = Gross Income ÷ 1.2</li>
-            <li><strong>VAT</strong> = Gross Income - Net Income</li>
-          </ul>
-        </div>
       </form>
+
+      {/* Confirmation Modal */}
+      {showConfirmation && calculatedValues && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '8px',
+            maxWidth: '600px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflow: 'auto'
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>
+              {existingRecord ? 'Edit Daily Figures' : 'Add Daily Figures'}
+            </h2>
+
+            <p style={{ marginBottom: '1rem', color: '#4a5568' }}>
+              Please review the calculated values before saving:
+            </p>
+
+            <div style={{
+              backgroundColor: '#f7fafc',
+              padding: '1rem',
+              borderRadius: '4px',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: 'white', borderRadius: '4px' }}>
+                  <strong>Date:</strong>
+                  <span>{formData.date}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: 'white', borderRadius: '4px' }}>
+                  <strong>Gross Total:</strong>
+                  <span>{formatCurrency(calculatedValues.grossTotal)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#e6fffa', borderRadius: '4px' }}>
+                  <strong>Fee:</strong>
+                  <span>{formatCurrency(calculatedValues.fee)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#e6fffa', borderRadius: '4px' }}>
+                  <strong>Net Total:</strong>
+                  <span>{formatCurrency(calculatedValues.netTotal)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#e6fffa', borderRadius: '4px' }}>
+                  <strong>Gross Income:</strong>
+                  <span>{formatCurrency(calculatedValues.grossIncome)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#e6fffa', borderRadius: '4px' }}>
+                  <strong>Net Income:</strong>
+                  <span>{formatCurrency(calculatedValues.netIncome)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#e6fffa', borderRadius: '4px' }}>
+                  <strong>VAT:</strong>
+                  <span>{formatCurrency(calculatedValues.vat)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#e6fffa', borderRadius: '4px' }}>
+                  <strong>Abbie's Pay:</strong>
+                  <span>{formatCurrency(calculatedValues.abbiesPay)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowConfirmation(false)}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#e2e8f0',
+                  color: '#4a5568',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSave}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#48bb78',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+              >
+                Confirm & Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
