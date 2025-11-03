@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getAllWages } from '../firebase/firestoreService';
 import { getFiscalYearMonths } from '../utils/fiscalYearUtils';
 import WagesForm from '../components/WagesForm';
+import WagesImport from '../components/WagesImport';
 
 function Wages({ year }) {
   const { currentUser } = useAuth();
@@ -12,6 +13,7 @@ function Wages({ year }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -84,35 +86,40 @@ function Wages({ year }) {
     return 'October';
   };
 
-  const handleFormSave = () => {
-    // Refresh data after saving
+  const refreshData = async () => {
     if (currentUser) {
-      const fetchData = async () => {
-        const result = await getAllWages(currentUser.uid, year || '2024-25');
-        if (result.success) {
-          const fiscalYearMonthOrder = [
-            'October', 'November', 'December',
-            'January', 'February', 'March',
-            'April', 'May', 'June',
-            'July', 'August', 'September'
-          ];
+      const result = await getAllWages(currentUser.uid, year || '2024-25');
+      if (result.success) {
+        const fiscalYearMonthOrder = [
+          'October', 'November', 'December',
+          'January', 'February', 'March',
+          'April', 'May', 'June',
+          'July', 'August', 'September'
+        ];
 
-          const sortedData = result.data.sort((a, b) => {
-            const monthA = a.month || a.id;
-            const monthB = b.month || b.id;
-            let indexA = fiscalYearMonthOrder.indexOf(monthA);
-            let indexB = fiscalYearMonthOrder.indexOf(monthB);
-            if (indexA === -1) indexA = 999;
-            if (indexB === -1) indexB = 999;
-            return indexA - indexB;
-          });
+        const sortedData = result.data.sort((a, b) => {
+          const monthA = a.month || a.id;
+          const monthB = b.month || b.id;
+          let indexA = fiscalYearMonthOrder.indexOf(monthA);
+          let indexB = fiscalYearMonthOrder.indexOf(monthB);
+          if (indexA === -1) indexA = 999;
+          if (indexB === -1) indexB = 999;
+          return indexA - indexB;
+        });
 
-          setData(sortedData);
-        }
-      };
-      fetchData();
+        setData(sortedData);
+      }
     }
+  };
+
+  const handleFormSave = () => {
+    refreshData();
     setShowForm(false);
+  };
+
+  const handleImportComplete = () => {
+    refreshData();
+    setShowImport(false);
   };
 
   if (loading) return <div className="loading">Loading...</div>;
@@ -141,21 +148,45 @@ function Wages({ year }) {
     <div className="wages">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 style={{ margin: 0 }}>Wages Breakdown {year}</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          style={{
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#667eea',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '1rem'
-          }}
-        >
-          {showForm ? 'Hide Form' : '+ Add Monthly Wages'}
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <button
+            onClick={() => {
+              setShowImport(!showImport);
+              setShowForm(false);
+            }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#48bb78',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            {showImport ? 'Hide Import' : '📁 Import CSV'}
+          </button>
+          <button
+            onClick={() => {
+              setShowForm(!showForm);
+              setShowImport(false);
+            }}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: '#667eea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            {showForm ? 'Hide Form' : '+ Add Monthly Wages'}
+          </button>
+        </div>
       </div>
+
+      {showImport && <WagesImport year={year || '2024-25'} onImportComplete={handleImportComplete} />}
 
       {showForm && <WagesForm onSave={handleFormSave} year={year || '2024-25'} initialMonth={getNextAvailableMonth()} />}
 
