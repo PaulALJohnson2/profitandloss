@@ -1,0 +1,16 @@
+{
+  "name": "pandl-app",
+  "version": "1.0.0",
+  "description": "P&L Dashboard for pub business",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && node server.js",
+    "dev:frontend": "cd frontend && vite",
+    "build": "cd frontend && vite build",
+    "preview": "cd frontend && vite preview"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
