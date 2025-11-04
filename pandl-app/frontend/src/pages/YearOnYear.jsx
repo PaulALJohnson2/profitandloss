@@ -336,7 +336,7 @@ function YearOnYear({ year }) {
                     ))}
                   </tr>
                   <tr style={{ backgroundColor: '#f7fafc' }}>
-                    <td><strong>Sundries</strong></td>
+                    <td><strong>Expenses</strong></td>
                     {sortedYears.map(year => (
                       <td key={year} className="currency">{formatCurrency(annualTotals[year]?.sundries || 0)}</td>
                     ))}

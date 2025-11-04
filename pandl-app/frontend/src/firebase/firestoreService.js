@@ -183,6 +183,21 @@ export async function getAllFixedCosts(userId, year) {
   }
 }
 
+export async function getFixedCostById(userId, year, serviceId) {
+  try {
+    const docRef = doc(db, `users/${userId}/years/${year}/fixedCosts/${serviceId}`);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { success: true, data: { id: docSnap.id, ...docSnap.data() } };
+    } else {
+      return { success: false, error: 'Fixed cost not found' };
+    }
+  } catch (error) {
+    console.error('Error getting fixed cost:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function deleteFixedCost(userId, year, serviceId) {
   try {
     const docRef = doc(db, `users/${userId}/years/${year}/fixedCosts/${serviceId}`);
@@ -325,11 +340,13 @@ export async function deleteSundry(userId, year, sundryId) {
 export async function saveOrUpdateMonthlySummary(userId, year, month, data) {
   try {
     const docRef = doc(db, `users/${userId}/years/${year}/monthlySummaries/${month}`);
+    // Use setDoc WITHOUT merge to completely replace the document
+    // This ensures we don't accumulate partial/stale data
     await setDoc(docRef, {
       ...data,
       month,
       updatedAt: Timestamp.now()
-    }, { merge: true });
+    });
     return { success: true };
   } catch (error) {
     console.error('Error saving monthly summary:', error);
@@ -346,13 +363,40 @@ export async function getAllMonthlySummaries(userId, year) {
       summaries.push({ id: doc.id, ...doc.data() });
     });
 
-    // Deduplicate by month, keeping the most recently updated entry
+    // Deduplicate by month, keeping the most recently updated entry with most complete data
     const monthMap = new Map();
     summaries.forEach((summary) => {
+      if (!summary.month) {
+        // Skip summaries without a month field
+        console.warn('Found summary without month field:', summary.id);
+        return;
+      }
+
       const existingSummary = monthMap.get(summary.month);
-      if (!existingSummary ||
-          (summary.updatedAt && existingSummary.updatedAt &&
-           summary.updatedAt.toMillis() > existingSummary.updatedAt.toMillis())) {
+
+      // If no existing summary, add this one
+      if (!existingSummary) {
+        monthMap.set(summary.month, summary);
+        return;
+      }
+
+      // Prefer the entry with more complete data (has non-zero wages, fixedCosts, or sundries)
+      const currentScore = ((summary.wages && summary.wages !== 0) ? 1 : 0) +
+                          ((summary.fixedCosts && summary.fixedCosts !== 0) ? 1 : 0) +
+                          ((summary.sundries && summary.sundries !== 0) ? 1 : 0);
+      const existingScore = ((existingSummary.wages && existingSummary.wages !== 0) ? 1 : 0) +
+                           ((existingSummary.fixedCosts && existingSummary.fixedCosts !== 0) ? 1 : 0) +
+                           ((existingSummary.sundries && existingSummary.sundries !== 0) ? 1 : 0);
+
+      // If scores are equal, use updatedAt timestamp
+      if (currentScore === existingScore) {
+        const currentTime = summary.updatedAt ? summary.updatedAt.toMillis() : 0;
+        const existingTime = existingSummary.updatedAt ? existingSummary.updatedAt.toMillis() : 0;
+        if (currentTime > existingTime) {
+          monthMap.set(summary.month, summary);
+        }
+      } else if (currentScore > existingScore) {
+        // This summary has more complete data
         monthMap.set(summary.month, summary);
       }
     });
@@ -387,6 +431,117 @@ export async function deleteMonthlySummary(userId, year, month) {
 // CALCULATION HELPERS
 // ============================================
 
+// Count occurrences of a specific day of week in a month
+function countDayOccurrencesInMonth(year, month, dayOfWeek) {
+  // month format: "2024-10" (YYYY-MM)
+  const [yearNum, monthNum] = month.split('-').map(Number);
+  const firstDay = new Date(yearNum, monthNum - 1, 1);
+  const lastDay = new Date(yearNum, monthNum, 0);
+
+  let count = 0;
+  for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
+    if (d.getDay() === dayOfWeek) {
+      count++;
+    }
+  }
+  return count;
+}
+
+// Check if a specific day of month exists in a given month
+function isDayInMonth(year, month, dayOfMonth) {
+  // month format: "2024-10" (YYYY-MM)
+  const [yearNum, monthNum] = month.split('-').map(Number);
+  const lastDay = new Date(yearNum, monthNum, 0).getDate();
+  return dayOfMonth <= lastDay;
+}
+
+// Check if a yearly date falls within a given month
+function isYearlyDateInMonth(month, yearlyDate) {
+  // month format: "2024-10" (YYYY-MM)
+  // yearlyDate format: "MM-DD"
+  const [monthStr] = month.split('-').slice(1); // Get month part
+  const [yearlyMonth] = yearlyDate.split('-');
+
+  // Remove leading zeros for comparison
+  return parseInt(monthStr, 10) === parseInt(yearlyMonth, 10);
+}
+
+// Check if a fixed cost is active for a given month
+function isFixedCostActiveInMonth(cost, month) {
+  // If not cancelled, it's active
+  if (!cost.cancelled || !cost.cancelledDate) {
+    return true;
+  }
+
+  // month format: "2024-10" (YYYY-MM)
+  // cancelledDate format: "2024-10-15" (YYYY-MM-DD)
+
+  // Extract year-month from the cancellation date
+  const cancelledYearMonth = cost.cancelledDate.substring(0, 7); // "2024-10"
+
+  // If the cancellation was in a future month, the cost is still active this month
+  if (month < cancelledYearMonth) {
+    return true;
+  }
+
+  // If the cancellation was in a past month, the cost is no longer active
+  if (month > cancelledYearMonth) {
+    return false;
+  }
+
+  // If the cancellation was in this month, we need to check if any occurrences are before the cancellation date
+  // For simplicity, we'll include the cost for the month it was cancelled
+  // (You could make this more precise by checking specific days)
+  return true;
+}
+
+// Calculate total fixed costs for a month including all frequency types
+async function calculateMonthlyFixedCosts(userId, year, month) {
+  try {
+    // Get all fixed costs definitions
+    const fixedCostsResult = await getAllFixedCosts(userId, year);
+    if (!fixedCostsResult.success) {
+      return 0;
+    }
+
+    const fixedCosts = fixedCostsResult.data;
+    let totalCost = 0;
+
+    for (const cost of fixedCosts) {
+      // Skip if the cost was cancelled before this month
+      if (!isFixedCostActiveInMonth(cost, month)) {
+        continue;
+      }
+
+      const costAmount = cost.cost || 0;
+
+      if (cost.frequency === 'weekly' && cost.dayOfWeek !== undefined) {
+        // Weekly: Count how many times this day occurs in the month
+        const occurrences = countDayOccurrencesInMonth(year, month, cost.dayOfWeek);
+        totalCost += costAmount * occurrences;
+      } else if (cost.frequency === 'monthly' && cost.dayOfMonth !== undefined) {
+        // Monthly: Check if this day exists in the month (handles months with < 31 days)
+        if (isDayInMonth(year, month, cost.dayOfMonth)) {
+          totalCost += costAmount;
+        }
+      } else if (cost.frequency === 'yearly' && cost.yearlyDate) {
+        // Yearly: Check if this date falls in the current month
+        if (isYearlyDateInMonth(month, cost.yearlyDate)) {
+          totalCost += costAmount;
+        }
+      } else {
+        // Default/legacy: treat as monthly
+        totalCost += costAmount;
+      }
+    }
+
+    return totalCost;
+  } catch (error) {
+    console.error('Error calculating monthly fixed costs:', error);
+    return 0;
+  }
+}
+
 // Calculate monthly summary from daily figures
 export async function calculateMonthlySummary(userId, year, month) {
   try {
@@ -403,17 +558,15 @@ export async function calculateMonthlySummary(userId, year, month) {
     const summary = dailyFigures.reduce((acc, day) => ({
       grossIncome: acc.grossIncome + (day.grossIncome || 0),
       netIncome: acc.netIncome + (day.netIncome || 0),
-      abbiePay: acc.abbiePay + (day.abbiesPay || 0),
       vat: acc.vat + (day.vat || 0)
-    }), { grossIncome: 0, netIncome: 0, abbiePay: 0, vat: 0 });
+    }), { grossIncome: 0, netIncome: 0, vat: 0 });
 
     // Get wages for the month
     const wagesDoc = await getDoc(doc(db, `users/${userId}/years/${year}/wages/${month}`));
     const wages = wagesDoc.exists() ? (wagesDoc.data().total || 0) : 0;
 
-    // Get fixed costs for the month
-    const fixedDoc = await getDoc(doc(db, `users/${userId}/years/${year}/fixedCostsMonthly/${month}`));
-    const fixedCosts = fixedDoc.exists() ? (fixedDoc.data().totalCost || 0) : 0;
+    // Calculate fixed costs for the month (including weekly costs)
+    const fixedCosts = await calculateMonthlyFixedCosts(userId, year, month);
 
     // Get sundries for the month
     const sundriesResult = await getAllSundries(userId, year);
@@ -423,8 +576,8 @@ export async function calculateMonthlySummary(userId, year, month) {
           .reduce((sum, s) => sum + (s.amount || 0), 0)
       : 0;
 
-    // Calculate profit
-    const profit = summary.netIncome - summary.abbiePay - wages - fixedCosts - sundries;
+    // Calculate profit (fixed costs now include Abbie's Pay if configured as weekly cost)
+    const profit = summary.netIncome - wages - fixedCosts - sundries;
 
     // Save the monthly summary
     await saveOrUpdateMonthlySummary(userId, year, month, {

@@ -94,7 +94,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25', allData
     grossIncome: '',
     netIncome: '',
     vat: '',
-    abbiesPay: '',
     noTrade: false
   });
 
@@ -139,7 +138,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25', allData
             grossIncome: result.data.grossIncome || '',
             netIncome: result.data.netIncome || '',
             vat: result.data.vat || '',
-            abbiesPay: result.data.abbiesPay || '',
             noTrade: result.data.noTrade || false
           });
           const statusText = result.data.noTrade ? 'Existing record found - NO TRADE day' : 'Existing record found - editing mode';
@@ -182,16 +180,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25', allData
     // Calculate Fee using exact spreadsheet formula: =SUM((B2*0.72)/1.2)
     const fee = (gross * 0.72) / 1.2;
 
-    // Calculate Abbie's Pay (£455.37 if Friday, otherwise 0)
-    let abbiesPay = 0;
-    if (date) {
-      const selectedDate = new Date(date);
-      const dayOfWeek = selectedDate.getDay(); // 0 = Sunday, 5 = Friday
-      if (dayOfWeek === 5) { // Friday
-        abbiesPay = 455.37;
-      }
-    }
-
     // Calculate Net Total (Gross Total / 1.2)
     const netTotal = gross / 1.2;
 
@@ -207,7 +195,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25', allData
     return {
       grossTotal: gross,
       fee: parseFloat(fee.toFixed(2)),
-      abbiesPay: parseFloat(abbiesPay.toFixed(2)),
       netTotal: parseFloat(netTotal.toFixed(2)),
       grossIncome: parseFloat(grossIncome.toFixed(2)),
       netIncome: parseFloat(netIncome.toFixed(2)),
@@ -254,7 +241,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25', allData
     const noTradeValues = {
       grossTotal: 0,
       fee: 0,
-      abbiesPay: 0,
       netTotal: 0,
       grossIncome: 0,
       netIncome: 0,
@@ -309,7 +295,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25', allData
               grossIncome: '',
               netIncome: '',
               vat: '',
-              abbiesPay: '',
               noTrade: false
             });
             setMessage({ type: '', text: '' });
@@ -531,10 +516,6 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25', allData
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#e6fffa', borderRadius: '4px' }}>
                   <strong>VAT:</strong>
                   <span>{formatCurrency(calculatedValues.vat)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', backgroundColor: '#e6fffa', borderRadius: '4px' }}>
-                  <strong>Abbie's Pay:</strong>
-                  <span>{formatCurrency(calculatedValues.abbiesPay)}</span>
                 </div>
               </div>
             </div>

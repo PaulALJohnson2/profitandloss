@@ -41,12 +41,12 @@ function Sundries({ year }) {
 
   return (
     <div className="sundries">
-      <h1>Sundries {year}</h1>
+      <h1>Expenses {year}</h1>
 
       {data.length === 0 ? (
         <div className="card">
-          <h2>No Sundries Recorded</h2>
-          <p>There are currently no sundry expenses recorded for this financial year.</p>
+          <h2>No Expenses Recorded</h2>
+          <p>There are currently no expenses recorded for this financial year.</p>
         </div>
       ) : (
         <>
@@ -70,7 +70,7 @@ function Sundries({ year }) {
           </div>
 
           <div className="card">
-            <h2>Sundries Details</h2>
+            <h2>Expense Details</h2>
             <div className="table-container">
               <table>
                 <thead>
@@ -104,9 +104,9 @@ function Sundries({ year }) {
       )}
 
       <div className="card" style={{ backgroundColor: '#f7fafc', marginTop: '1rem' }}>
-        <h3>About Sundries</h3>
+        <h3>About Expenses</h3>
         <p>
-          Sundries are miscellaneous expenses that don't fall into regular categories like wages or fixed costs.
+          Expenses are miscellaneous costs that don't fall into regular categories like wages or fixed costs.
           These might include one-off purchases, repairs, or other irregular expenses.
         </p>
       </div>

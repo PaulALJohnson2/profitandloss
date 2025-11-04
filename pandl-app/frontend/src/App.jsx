@@ -121,7 +121,7 @@ function ProtectedApp() {
         <Link to="/wages" className="nav-link">Wages</Link>
         <Link to="/fixed" className="nav-link">Fixed Costs</Link>
         <Link to="/vat" className="nav-link">VAT</Link>
-        <Link to="/sundries" className="nav-link">Sundries</Link>
+        <Link to="/sundries" className="nav-link">Expenses</Link>
         <Link to="/year-on-year" className="nav-link">Year-on-Year</Link>
       </nav>
 

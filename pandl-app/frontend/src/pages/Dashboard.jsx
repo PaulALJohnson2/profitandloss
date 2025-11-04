@@ -2,33 +2,54 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { formatCurrency, formatMonth } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
-import { getAllMonthlySummaries } from '../firebase/firestoreService';
+import { getAllMonthlySummaries, recalculateAllMonthlySummaries } from '../firebase/firestoreService';
 
 function Dashboard({ year }) {
   const { currentUser } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [recalculating, setRecalculating] = useState(false);
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!currentUser) {
-        setError('User not authenticated');
-        setLoading(false);
-        return;
-      }
-
-      const result = await getAllMonthlySummaries(currentUser.uid, year || '2024-25');
-      if (result.success) {
-        setData(result.data);
-      } else {
-        setError(result.error);
-      }
+  const fetchData = async () => {
+    if (!currentUser) {
+      setError('User not authenticated');
       setLoading(false);
+      return;
     }
 
+    const result = await getAllMonthlySummaries(currentUser.uid, year || '2024-25');
+    if (result.success) {
+      setData(result.data);
+    } else {
+      setError(result.error);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchData();
   }, [currentUser, year]);
+
+  const handleRecalculate = async () => {
+    if (!currentUser) return;
+
+    setRecalculating(true);
+    try {
+      const result = await recalculateAllMonthlySummaries(currentUser.uid, year || '2024-25');
+      if (result.success) {
+        // Refresh the data
+        await fetchData();
+        alert('Monthly summaries recalculated successfully! Fixed costs now include all weekly, monthly, and yearly costs.');
+      } else {
+        alert(`Error: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`Failed to recalculate: ${error.message}`);
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">Error: {error}</div>;
@@ -40,8 +61,9 @@ function Dashboard({ year }) {
     netIncome: acc.netIncome + (month.netIncome || 0),
     wages: acc.wages + (month.wages || 0),
     fixedCosts: acc.fixedCosts + (month.fixedCosts || 0),
+    sundries: acc.sundries + (month.sundries || 0),
     profit: acc.profit + (month.profit || 0)
-  }), { grossIncome: 0, netIncome: 0, wages: 0, fixedCosts: 0, profit: 0 });
+  }), { grossIncome: 0, netIncome: 0, wages: 0, fixedCosts: 0, sundries: 0, profit: 0 });
 
   // Prepare chart data
   const chartData = data.map(month => ({
@@ -54,9 +76,27 @@ function Dashboard({ year }) {
 
   return (
     <div className="dashboard">
-      <h1>Financial Overview {year}</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <h1 style={{ margin: 0 }}>Financial Overview {year}</h1>
+        <button
+          onClick={handleRecalculate}
+          disabled={recalculating}
+          style={{
+            padding: '0.75rem 1.5rem',
+            backgroundColor: recalculating ? '#cbd5e0' : '#667eea',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: recalculating ? 'not-allowed' : 'pointer',
+            fontWeight: '500',
+            fontSize: '1rem'
+          }}
+        >
+          {recalculating ? 'Recalculating...' : 'Recalculate Fixed Costs'}
+        </button>
+      </div>
 
-      <div className="stats-grid">
+      <div className="stats-grid" style={{ marginBottom: '2rem' }}>
         <div className="stat-card">
           <div className="stat-label">Total Gross Income</div>
           <div className="stat-value">{formatCurrency(totals.grossIncome)}</div>
@@ -84,6 +124,51 @@ function Dashboard({ year }) {
           <div className={`stat-value ${(totals.profit / data.length) >= 0 ? 'positive' : 'negative'}`}>
             {formatCurrency(totals.profit / data.length)}
           </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>Monthly Summary</h2>
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th className="currency">Gross Income</th>
+                <th className="currency">Net Income</th>
+                <th className="currency">Wages</th>
+                <th className="currency">Fixed Costs</th>
+                <th className="currency">Expenses</th>
+                <th className="currency">Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((month, index) => (
+                <tr key={index}>
+                  <td>{formatMonth(month.month)}</td>
+                  <td className="currency">{formatCurrency(month.grossIncome)}</td>
+                  <td className="currency">{formatCurrency(month.netIncome)}</td>
+                  <td className="currency">{formatCurrency(month.wages)}</td>
+                  <td className="currency">{formatCurrency(month.fixedCosts)}</td>
+                  <td className="currency">{formatCurrency(month.sundries)}</td>
+                  <td className={`currency ${month.profit >= 0 ? 'positive' : 'negative'}`}>
+                    {formatCurrency(month.profit)}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{ fontWeight: 'bold', backgroundColor: '#f0f0f0' }}>
+                <td>TOTAL</td>
+                <td className="currency">{formatCurrency(totals.grossIncome)}</td>
+                <td className="currency">{formatCurrency(totals.netIncome)}</td>
+                <td className="currency">{formatCurrency(totals.wages)}</td>
+                <td className="currency">{formatCurrency(totals.fixedCosts)}</td>
+                <td className="currency">{formatCurrency(totals.sundries)}</td>
+                <td className={`currency ${totals.profit >= 0 ? 'positive' : 'negative'}`}>
+                  {formatCurrency(totals.profit)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -116,54 +201,6 @@ function Dashboard({ year }) {
             <Bar dataKey="Profit" fill="#82ca9d" />
           </BarChart>
         </ResponsiveContainer>
-      </div>
-
-      <div className="card">
-        <h2>Monthly Summary</h2>
-        <div className="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th className="currency">Gross Income</th>
-                <th className="currency">Net Income</th>
-                <th className="currency">Abbie Pay</th>
-                <th className="currency">Wages</th>
-                <th className="currency">Fixed Costs</th>
-                <th className="currency">Sundries</th>
-                <th className="currency">Profit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((month, index) => (
-                <tr key={index}>
-                  <td>{formatMonth(month.month)}</td>
-                  <td className="currency">{formatCurrency(month.grossIncome)}</td>
-                  <td className="currency">{formatCurrency(month.netIncome)}</td>
-                  <td className="currency">{formatCurrency(month.abbiePay)}</td>
-                  <td className="currency">{formatCurrency(month.wages)}</td>
-                  <td className="currency">{formatCurrency(month.fixedCosts)}</td>
-                  <td className="currency">{formatCurrency(month.sundries)}</td>
-                  <td className={`currency ${month.profit >= 0 ? 'positive' : 'negative'}`}>
-                    {formatCurrency(month.profit)}
-                  </td>
-                </tr>
-              ))}
-              <tr style={{ fontWeight: 'bold', backgroundColor: '#f0f0f0' }}>
-                <td>TOTAL</td>
-                <td className="currency">{formatCurrency(totals.grossIncome)}</td>
-                <td className="currency">{formatCurrency(totals.netIncome)}</td>
-                <td className="currency">{formatCurrency(data.reduce((sum, m) => sum + (m.abbiePay || 0), 0))}</td>
-                <td className="currency">{formatCurrency(totals.wages)}</td>
-                <td className="currency">{formatCurrency(totals.fixedCosts)}</td>
-                <td className="currency">{formatCurrency(data.reduce((sum, m) => sum + (m.sundries || 0), 0))}</td>
-                <td className={`currency ${totals.profit >= 0 ? 'positive' : 'negative'}`}>
-                  {formatCurrency(totals.profit)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );
