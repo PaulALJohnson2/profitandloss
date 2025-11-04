@@ -4,9 +4,10 @@ import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
 import { isDateInFiscalYear, getFiscalYearDates, isPastFiscalYearEnd } from '../utils/fiscalYearUtils';
 
-function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
+function DailyFigureForm({ onSave, initialDate = null, year = '2024-25', allData = [], autoAdvance = true }) {
   const { currentUser } = useAuth();
   const modalRef = useRef(null);
+  const grossTotalInputRef = useRef(null);
   const today = new Date().toISOString().split('T')[0];
 
   // Determine the default date to use
@@ -23,6 +24,47 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
   };
 
   const defaultDate = getDefaultDate();
+
+  // Find the next empty date (excluding December 25th and noTrade days)
+  const findNextEmptyDate = (currentData) => {
+    // Create a map of dates to their figure data
+    const dateMap = new Map(currentData.map(figure => [figure.date, figure]));
+
+    // Get fiscal year date range
+    const fiscalYearDates = getFiscalYearDates(year);
+    const startDate = new Date(fiscalYearDates.startDate);
+    const endDate = new Date(fiscalYearDates.endDate);
+    const todayDate = new Date(today);
+
+    // Find the earliest date without a figure or with 0.00 (excluding December 25th and noTrade days)
+    let currentDate = new Date(startDate);
+    const maxDate = todayDate < endDate ? todayDate : endDate;
+
+    while (currentDate <= maxDate) {
+      const dateString = currentDate.toISOString().split('T')[0];
+      const month = currentDate.getMonth() + 1; // 0-indexed, so +1
+      const day = currentDate.getDate();
+
+      // Skip December 25th (month 12, day 25)
+      const isDecember25 = month === 12 && day === 25;
+
+      // Get the figure for this date
+      const figure = dateMap.get(dateString);
+      const grossTotal = figure?.grossTotal || 0;
+      const isNoTrade = figure?.noTrade || false;
+
+      // If this date doesn't have a figure or has 0.00, isn't December 25th, and isn't marked as noTrade, use it
+      if (grossTotal === 0 && !isDecember25 && !isNoTrade) {
+        return dateString;
+      }
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // If all dates are filled, return today
+    return today;
+  };
 
   // Format date as "Monday 3rd November"
   const formatDateDisplay = (dateString) => {
@@ -52,7 +94,8 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
     grossIncome: '',
     netIncome: '',
     vat: '',
-    abbiesPay: ''
+    abbiesPay: '',
+    noTrade: false
   });
 
   const [loading, setLoading] = useState(false);
@@ -96,9 +139,11 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
             grossIncome: result.data.grossIncome || '',
             netIncome: result.data.netIncome || '',
             vat: result.data.vat || '',
-            abbiesPay: result.data.abbiesPay || ''
+            abbiesPay: result.data.abbiesPay || '',
+            noTrade: result.data.noTrade || false
           });
-          setMessage({ type: 'info', text: 'Existing record found - editing mode' });
+          const statusText = result.data.noTrade ? 'Existing record found - NO TRADE day' : 'Existing record found - editing mode';
+          setMessage({ type: 'info', text: statusText });
         } else {
           setExistingRecord(null);
           setMessage({ type: '', text: '' });
@@ -114,6 +159,13 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
       modalRef.current.focus();
     }
   }, [showConfirmation]);
+
+  // Focus gross total input when form loads
+  useEffect(() => {
+    if (grossTotalInputRef.current) {
+      grossTotalInputRef.current.focus();
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -184,6 +236,35 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
     setShowConfirmation(true);
   };
 
+  const handleNoTrade = async () => {
+    setMessage({ type: '', text: '' });
+
+    if (!currentUser) {
+      setMessage({ type: 'error', text: 'You must be logged in to save daily figures' });
+      return;
+    }
+
+    // Validate date is within fiscal year
+    if (!dateValidation.isValid) {
+      setMessage({ type: 'error', text: dateValidation.message });
+      return;
+    }
+
+    // Set all values to zero and mark as no trade
+    const noTradeValues = {
+      grossTotal: 0,
+      fee: 0,
+      abbiesPay: 0,
+      netTotal: 0,
+      grossIncome: 0,
+      netIncome: 0,
+      vat: 0,
+      noTrade: true
+    };
+    setCalculatedValues(noTradeValues);
+    setShowConfirmation(true);
+  };
+
   const handleConfirmSave = async () => {
     setLoading(true);
     setShowConfirmation(false);
@@ -197,25 +278,48 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
           text: existingRecord ? 'Daily figure updated successfully!' : 'Daily figure saved successfully!'
         });
 
+        // Create updated data array with the new/updated record
+        const updatedData = [...allData];
+        const existingIndex = updatedData.findIndex(d => d.date === formData.date);
+        const savedRecord = { ...calculatedValues, date: formData.date };
+
+        if (existingIndex >= 0) {
+          updatedData[existingIndex] = savedRecord;
+        } else {
+          updatedData.push(savedRecord);
+        }
+
         // Call parent callback if provided
         if (onSave) {
           onSave(formData.date);
         }
 
-        // Reset form after a delay
-        setTimeout(() => {
-          setFormData({
-            date: defaultDate,
-            grossTotal: '',
-            netTotal: '',
-            fee: '',
-            grossIncome: '',
-            netIncome: '',
-            vat: '',
-            abbiesPay: ''
-          });
-          setMessage({ type: '', text: '' });
-        }, 2000);
+        // If autoAdvance is enabled, move to next empty date
+        if (autoAdvance) {
+          // Find next empty date (never past today)
+          const nextDate = findNextEmptyDate(updatedData);
+
+          // Move to next empty date and focus input
+          setTimeout(() => {
+            setFormData({
+              date: nextDate,
+              grossTotal: '',
+              netTotal: '',
+              fee: '',
+              grossIncome: '',
+              netIncome: '',
+              vat: '',
+              abbiesPay: '',
+              noTrade: false
+            });
+            setMessage({ type: '', text: '' });
+
+            // Focus the gross total input field
+            if (grossTotalInputRef.current) {
+              grossTotalInputRef.current.focus();
+            }
+          }, 500);
+        }
       } else {
         setMessage({
           type: 'error',
@@ -283,6 +387,7 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
           <div className="filter-group">
             <label>Gross Total *</label>
             <input
+              ref={grossTotalInputRef}
               type="number"
               name="grossTotal"
               value={formData.grossTotal}
@@ -294,6 +399,44 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
             />
           </div>
 
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'space-between' }}>
+          <button
+            type="button"
+            onClick={handleNoTrade}
+            disabled={loading || !dateValidation.isValid}
+            style={{
+              padding: '0.75rem 2rem',
+              backgroundColor: loading || !dateValidation.isValid ? '#cbd5e0' : '#e53e3e',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loading || !dateValidation.isValid ? 'not-allowed' : 'pointer',
+              fontWeight: '500',
+              fontSize: '1rem'
+            }}
+          >
+            No Trade
+          </button>
+
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={loading || !dateValidation.isValid}
+            style={{
+              padding: '0.75rem 2rem',
+              backgroundColor: loading || !dateValidation.isValid ? '#cbd5e0' : '#667eea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: loading || !dateValidation.isValid ? 'not-allowed' : 'pointer',
+              fontWeight: '500',
+              fontSize: '1rem'
+            }}
+          >
+            {loading ? 'Saving...' : (existingRecord ? 'Update Figure' : 'Save Figure')}
+          </button>
         </div>
       </form>
 
@@ -333,8 +476,22 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
             overflow: 'auto'
           }}>
             <h2 style={{ marginTop: 0, marginBottom: '1rem' }}>
-              {existingRecord ? 'Edit Daily Figures' : 'Add Daily Figures'}
+              {calculatedValues.noTrade ? 'Mark as NO TRADE Day' : (existingRecord ? 'Edit Daily Figures' : 'Add Daily Figures')}
             </h2>
+
+            {calculatedValues.noTrade && (
+              <div style={{
+                padding: '0.75rem',
+                backgroundColor: '#fed7d7',
+                color: '#c53030',
+                borderRadius: '4px',
+                marginBottom: '1rem',
+                fontWeight: '500',
+                textAlign: 'center'
+              }}>
+                This will mark the pub as closed for trading on this date
+              </div>
+            )}
 
             <p style={{ marginBottom: '1rem', color: '#4a5568' }}>
               Please review the calculated values before saving:
