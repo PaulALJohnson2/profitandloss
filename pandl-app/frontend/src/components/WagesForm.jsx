@@ -95,6 +95,11 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
     }
   };
 
+  // Helper function to round to 2 decimal places
+  const roundTo2Decimals = (num) => {
+    return Math.round((parseFloat(num) || 0) * 100) / 100;
+  };
+
   // Calculate total
   const calculateTotal = () => {
     const netOut = parseFloat(formData.netOut) || 0;
@@ -102,7 +107,7 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
     const hmrc = parseFloat(formData.hmrc) || 0;
     const nest = parseFloat(formData.nest) || 0;
 
-    return netOut + invoices + hmrc + nest;
+    return roundTo2Decimals(netOut + invoices + hmrc + nest);
   };
 
   const handleInputChange = (e) => {
@@ -126,10 +131,10 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
 
     try {
       const wagesData = {
-        netOut: parseFloat(formData.netOut) || 0,
-        invoices: parseFloat(formData.invoices) || 0,
-        hmrc: parseFloat(formData.hmrc) || 0,
-        nest: parseFloat(formData.nest) || 0,
+        netOut: roundTo2Decimals(formData.netOut),
+        invoices: roundTo2Decimals(formData.invoices),
+        hmrc: roundTo2Decimals(formData.hmrc),
+        nest: roundTo2Decimals(formData.nest),
         total: calculateTotal()
       };
 

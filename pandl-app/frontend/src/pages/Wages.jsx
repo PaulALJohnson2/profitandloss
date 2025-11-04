@@ -134,14 +134,19 @@ function Wages({ year }) {
     setShowImport(false);
   };
 
+  // Helper function to round to 2 decimal places
+  const roundTo2Decimals = (num) => {
+    return Math.round((parseFloat(num) || 0) * 100) / 100;
+  };
+
   const handleRowClick = (monthData) => {
     setEditingMonth(monthData);
     setEditingValues({
-      netOut: monthData.netOut || 0,
-      invoices: monthData.invoices || 0,
-      hmrc: monthData.hmrc || 0,
-      nest: monthData.nest || 0,
-      deductions: monthData.deductions || 0
+      netOut: roundTo2Decimals(monthData.netOut),
+      invoices: roundTo2Decimals(monthData.invoices),
+      hmrc: roundTo2Decimals(monthData.hmrc),
+      nest: roundTo2Decimals(monthData.nest),
+      deductions: roundTo2Decimals(monthData.deductions)
     });
     setCurrentField('netOut');
     setShowEditModal(true);
@@ -181,19 +186,19 @@ function Wages({ year }) {
   const handleUpdate = async () => {
     if (!editingMonth) return;
 
-    const total =
-      parseFloat(editingValues.netOut || 0) +
-      parseFloat(editingValues.invoices || 0) +
-      parseFloat(editingValues.hmrc || 0) +
-      parseFloat(editingValues.nest || 0) +
-      parseFloat(editingValues.deductions || 0);
+    const netOut = roundTo2Decimals(editingValues.netOut);
+    const invoices = roundTo2Decimals(editingValues.invoices);
+    const hmrc = roundTo2Decimals(editingValues.hmrc);
+    const nest = roundTo2Decimals(editingValues.nest);
+    const deductions = roundTo2Decimals(editingValues.deductions);
+    const total = roundTo2Decimals(netOut + invoices + hmrc + nest + deductions);
 
     const updatedData = {
-      netOut: parseFloat(editingValues.netOut) || 0,
-      invoices: parseFloat(editingValues.invoices) || 0,
-      hmrc: parseFloat(editingValues.hmrc) || 0,
-      nest: parseFloat(editingValues.nest) || 0,
-      deductions: parseFloat(editingValues.deductions) || 0,
+      netOut,
+      invoices,
+      hmrc,
+      nest,
+      deductions,
       total
     };
 
@@ -533,11 +538,13 @@ function Wages({ year }) {
               }}>
                 <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
                   Total: {formatCurrency(
-                    (parseFloat(editingValues.netOut) || 0) +
-                    (parseFloat(editingValues.invoices) || 0) +
-                    (parseFloat(editingValues.hmrc) || 0) +
-                    (parseFloat(editingValues.nest) || 0) +
-                    (parseFloat(editingValues.deductions) || 0)
+                    roundTo2Decimals(
+                      (parseFloat(editingValues.netOut) || 0) +
+                      (parseFloat(editingValues.invoices) || 0) +
+                      (parseFloat(editingValues.hmrc) || 0) +
+                      (parseFloat(editingValues.nest) || 0) +
+                      (parseFloat(editingValues.deductions) || 0)
+                    )
                   )}
                 </div>
               </div>

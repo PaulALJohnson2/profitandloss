@@ -25,6 +25,11 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
     }
   }, [showModal, currentMonthIndex]);
 
+  // Helper function to round to 2 decimal places
+  const roundTo2Decimals = (num) => {
+    return Math.round((parseFloat(num) || 0) * 100) / 100;
+  };
+
   const parseCsvData = (csvText) => {
     const lines = csvText.split('\n');
     const wagesData = [];
@@ -96,12 +101,12 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
 
         wagesData.push({
           month: currentMonth,
-          netOut: takeHomePay,
+          netOut: roundTo2Decimals(takeHomePay),
           invoices: 0, // Not in CSV
-          hmrc: hmrc,
-          nest: employerPension,
+          hmrc: roundTo2Decimals(hmrc),
+          nest: roundTo2Decimals(employerPension),
           deductions: 0, // Not in CSV
-          total: costToEmployer
+          total: roundTo2Decimals(costToEmployer)
         });
 
         console.log(`Parsed ${currentMonth}:`, {
@@ -209,8 +214,8 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
     if (!uploadedData || currentMonthIndex >= uploadedData.length) return;
 
     const currentMonth = uploadedData[currentMonthIndex];
-    const invoices = parseFloat(modalInvoices) || 0;
-    const deductions = parseFloat(modalDeductions) || 0;
+    const invoices = roundTo2Decimals(modalInvoices);
+    const deductions = roundTo2Decimals(modalDeductions);
 
     // Update Firebase with invoices and deductions
     const updatedWageData = {
