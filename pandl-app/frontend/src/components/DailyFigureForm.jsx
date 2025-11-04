@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { saveOrUpdateDailyFigure, getDailyFigureByDate } from '../firebase/firestoreService';
 import { formatCurrency } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,6 +6,7 @@ import { isDateInFiscalYear, getFiscalYearDates, isPastFiscalYearEnd } from '../
 
 function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
   const { currentUser } = useAuth();
+  const modalRef = useRef(null);
   const today = new Date().toISOString().split('T')[0];
 
   // Determine the default date to use
@@ -106,6 +107,13 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
     };
     checkExisting();
   }, [formData.date, currentUser, year]);
+
+  // Focus modal when it opens
+  useEffect(() => {
+    if (showConfirmation && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [showConfirmation]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -291,18 +299,30 @@ function DailyFigureForm({ onSave, initialDate = null, year = '2024-25' }) {
 
       {/* Confirmation Modal */}
       {showConfirmation && calculatedValues && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
+        <div
+          ref={modalRef}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleConfirmSave();
+            } else if (e.key === 'Escape') {
+              setShowConfirmation(false);
+            }
+          }}
+          tabIndex={-1}
+        >
           <div style={{
             backgroundColor: 'white',
             padding: '2rem',
