@@ -276,7 +276,7 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
                 fontWeight: 'bold'
               }}
             >
-              ✓ Upload to Firebase
+              Upload
             </button>
             <button
               onClick={() => setPreviewData(null)}
