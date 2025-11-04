@@ -452,7 +452,7 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
 
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                Invoices (£)
+                Invoices (without VAT) (£)
               </label>
               <input
                 ref={invoicesInputRef}

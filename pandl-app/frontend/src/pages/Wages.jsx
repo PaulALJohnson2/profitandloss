@@ -443,7 +443,7 @@ function Wages({ year }) {
 
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Invoices (£)
+                  Invoices (without VAT) (£)
                 </label>
                 <input
                   ref={inputRefs.invoices}

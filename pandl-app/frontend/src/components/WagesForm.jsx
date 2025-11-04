@@ -255,7 +255,7 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
 
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-              Invoices (£)
+              Invoices (without VAT) (£)
             </label>
             <input
               ref={invoicesRef}
