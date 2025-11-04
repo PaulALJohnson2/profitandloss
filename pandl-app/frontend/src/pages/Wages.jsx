@@ -14,10 +14,10 @@ function Wages({ year }) {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [editingRow, setEditingRow] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingMonth, setEditingMonth] = useState(null);
   const [editingValues, setEditingValues] = useState({});
   const [currentField, setCurrentField] = useState('netOut');
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const inputRefs = {
     netOut: useRef(null),
@@ -134,8 +134,8 @@ function Wages({ year }) {
     setShowImport(false);
   };
 
-  const handleRowClick = (monthData, index) => {
-    setEditingRow(index);
+  const handleRowClick = (monthData) => {
+    setEditingMonth(monthData);
     setEditingValues({
       netOut: monthData.netOut || 0,
       invoices: monthData.invoices || 0,
@@ -144,7 +144,7 @@ function Wages({ year }) {
       deductions: monthData.deductions || 0
     });
     setCurrentField('netOut');
-    // Focus will be set by useEffect
+    setShowEditModal(true);
   };
 
   const handleFieldChange = (field, value) => {
@@ -165,27 +165,22 @@ function Wages({ year }) {
         const nextField = fields[currentIndex + 1];
         setCurrentField(nextField);
         setTimeout(() => inputRefs[nextField].current?.focus(), 0);
-      } else {
-        // Show confirmation modal on last field
-        setShowConfirmModal(true);
       }
+      // Don't auto-save on last field, user clicks Update button
     } else if (e.key === 'Escape') {
-      setEditingRow(null);
-      setEditingValues({});
-      setShowConfirmModal(false);
+      handleCancelEdit();
     }
   };
 
   const handleCancelEdit = () => {
-    setShowConfirmModal(false);
-    setEditingRow(null);
+    setShowEditModal(false);
+    setEditingMonth(null);
     setEditingValues({});
   };
 
-  const handleConfirmUpdate = async () => {
-    if (editingRow === null) return;
+  const handleUpdate = async () => {
+    if (!editingMonth) return;
 
-    const monthData = data[editingRow];
     const total =
       parseFloat(editingValues.netOut || 0) +
       parseFloat(editingValues.invoices || 0) +
@@ -205,22 +200,22 @@ function Wages({ year }) {
     await saveOrUpdateWages(
       currentUser.uid,
       year || '2024-25',
-      monthData.month,
+      editingMonth.month,
       updatedData
     );
 
-    setShowConfirmModal(false);
-    setEditingRow(null);
+    setShowEditModal(false);
+    setEditingMonth(null);
     setEditingValues({});
     refreshData();
   };
 
-  // Auto-focus when editing starts or field changes
+  // Auto-focus when modal opens
   useEffect(() => {
-    if (editingRow !== null && currentField && inputRefs[currentField]?.current) {
+    if (showEditModal && currentField && inputRefs[currentField]?.current) {
       inputRefs[currentField].current.focus();
     }
-  }, [editingRow, currentField]);
+  }, [showEditModal, currentField]);
 
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">Error: {error}</div>;
@@ -354,93 +349,19 @@ function Wages({ year }) {
               {data.map((month, index) => (
                 <tr
                   key={index}
-                  onClick={() => editingRow !== index && handleRowClick(month, index)}
+                  onClick={() => handleRowClick(month)}
                   style={{
-                    cursor: editingRow !== index ? 'pointer' : 'default',
-                    backgroundColor: editingRow === index ? '#e6f2ff' : 'transparent'
+                    cursor: 'pointer'
                   }}
                 >
                   <td>{getMonthName(month.month)}</td>
-                  <td className="currency">
-                    {editingRow === index ? (
-                      <input
-                        ref={inputRefs.netOut}
-                        type="number"
-                        step="0.01"
-                        value={editingValues.netOut}
-                        onChange={(e) => handleFieldChange('netOut', e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, 'netOut')}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
-                      />
-                    ) : (
-                      formatCurrency(month.netOut)
-                    )}
-                  </td>
-                  <td className="currency">
-                    {editingRow === index ? (
-                      <input
-                        ref={inputRefs.invoices}
-                        type="number"
-                        step="0.01"
-                        value={editingValues.invoices}
-                        onChange={(e) => handleFieldChange('invoices', e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, 'invoices')}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
-                      />
-                    ) : (
-                      formatCurrency(month.invoices)
-                    )}
-                  </td>
+                  <td className="currency">{formatCurrency(month.netOut)}</td>
+                  <td className="currency">{formatCurrency(month.invoices)}</td>
                   <td className={`currency ${month.hmrc >= 0 ? 'negative' : 'positive'}`}>
-                    {editingRow === index ? (
-                      <input
-                        ref={inputRefs.hmrc}
-                        type="number"
-                        step="0.01"
-                        value={editingValues.hmrc}
-                        onChange={(e) => handleFieldChange('hmrc', e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, 'hmrc')}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
-                      />
-                    ) : (
-                      formatCurrency(month.hmrc)
-                    )}
+                    {formatCurrency(month.hmrc)}
                   </td>
-                  <td className="currency">
-                    {editingRow === index ? (
-                      <input
-                        ref={inputRefs.nest}
-                        type="number"
-                        step="0.01"
-                        value={editingValues.nest}
-                        onChange={(e) => handleFieldChange('nest', e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, 'nest')}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
-                      />
-                    ) : (
-                      formatCurrency(month.nest)
-                    )}
-                  </td>
-                  <td className="currency">
-                    {editingRow === index ? (
-                      <input
-                        ref={inputRefs.deductions}
-                        type="number"
-                        step="0.01"
-                        value={editingValues.deductions}
-                        onChange={(e) => handleFieldChange('deductions', e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, 'deductions')}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
-                      />
-                    ) : (
-                      formatCurrency(month.deductions)
-                    )}
-                  </td>
+                  <td className="currency">{formatCurrency(month.nest)}</td>
+                  <td className="currency">{formatCurrency(month.deductions)}</td>
                   <td className="currency">{formatCurrency(month.total)}</td>
                 </tr>
               ))}
@@ -472,8 +393,8 @@ function Wages({ year }) {
         </p>
       </div>
 
-      {/* Confirmation Modal */}
-      {showConfirmModal && editingRow !== null && (
+      {/* Edit Modal */}
+      {showEditModal && editingMonth && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -495,56 +416,131 @@ function Wages({ year }) {
             maxWidth: '600px'
           }}>
             <h3 style={{ marginTop: 0, marginBottom: '1.5rem' }}>
-              Confirm Changes for {getMonthName(data[editingRow].month)}
+              Edit Wages for {getMonthName(editingMonth.month)}
             </h3>
 
             <div style={{ marginBottom: '1.5rem' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>Net Out:</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                      {formatCurrency(parseFloat(editingValues.netOut) || 0)}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>Invoices:</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                      {formatCurrency(parseFloat(editingValues.invoices) || 0)}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>HMRC:</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                      {formatCurrency(parseFloat(editingValues.hmrc) || 0)}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>Nest:</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                      {formatCurrency(parseFloat(editingValues.nest) || 0)}
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>Deductions:</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                      {formatCurrency(parseFloat(editingValues.deductions) || 0)}
-                    </td>
-                  </tr>
-                  <tr style={{ borderTop: '2px solid #cbd5e0', fontWeight: 'bold', backgroundColor: '#f7fafc' }}>
-                    <td style={{ padding: '0.75rem' }}>Total:</td>
-                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                      {formatCurrency(
-                        (parseFloat(editingValues.netOut) || 0) +
-                        (parseFloat(editingValues.invoices) || 0) +
-                        (parseFloat(editingValues.hmrc) || 0) +
-                        (parseFloat(editingValues.nest) || 0) +
-                        (parseFloat(editingValues.deductions) || 0)
-                      )}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Net Out (£)
+                </label>
+                <input
+                  ref={inputRefs.netOut}
+                  type="number"
+                  step="0.01"
+                  value={editingValues.netOut}
+                  onChange={(e) => handleFieldChange('netOut', e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, 'netOut')}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '2px solid #cbd5e0',
+                    borderRadius: '4px',
+                    fontSize: '1rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Invoices (£)
+                </label>
+                <input
+                  ref={inputRefs.invoices}
+                  type="number"
+                  step="0.01"
+                  value={editingValues.invoices}
+                  onChange={(e) => handleFieldChange('invoices', e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, 'invoices')}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '2px solid #cbd5e0',
+                    borderRadius: '4px',
+                    fontSize: '1rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  HMRC (£)
+                </label>
+                <input
+                  ref={inputRefs.hmrc}
+                  type="number"
+                  step="0.01"
+                  value={editingValues.hmrc}
+                  onChange={(e) => handleFieldChange('hmrc', e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, 'hmrc')}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '2px solid #cbd5e0',
+                    borderRadius: '4px',
+                    fontSize: '1rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Nest (£)
+                </label>
+                <input
+                  ref={inputRefs.nest}
+                  type="number"
+                  step="0.01"
+                  value={editingValues.nest}
+                  onChange={(e) => handleFieldChange('nest', e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, 'nest')}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '2px solid #cbd5e0',
+                    borderRadius: '4px',
+                    fontSize: '1rem'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Deductions (£)
+                </label>
+                <input
+                  ref={inputRefs.deductions}
+                  type="number"
+                  step="0.01"
+                  value={editingValues.deductions}
+                  onChange={(e) => handleFieldChange('deductions', e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(e, 'deductions')}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '2px solid #cbd5e0',
+                    borderRadius: '4px',
+                    fontSize: '1rem'
+                  }}
+                />
+              </div>
+
+              <div style={{
+                padding: '1rem',
+                backgroundColor: '#f7fafc',
+                borderRadius: '4px',
+                marginTop: '1rem'
+              }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>
+                  Total: {formatCurrency(
+                    (parseFloat(editingValues.netOut) || 0) +
+                    (parseFloat(editingValues.invoices) || 0) +
+                    (parseFloat(editingValues.hmrc) || 0) +
+                    (parseFloat(editingValues.nest) || 0) +
+                    (parseFloat(editingValues.deductions) || 0)
+                  )}
+                </div>
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
@@ -564,7 +560,7 @@ function Wages({ year }) {
                 Cancel
               </button>
               <button
-                onClick={handleConfirmUpdate}
+                onClick={handleUpdate}
                 style={{
                   padding: '0.75rem 2rem',
                   backgroundColor: '#667eea',
