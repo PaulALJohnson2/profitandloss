@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { formatCurrency, getMonthName } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
-import { getAllWages } from '../firebase/firestoreService';
+import { getAllWages, saveOrUpdateWages } from '../firebase/firestoreService';
 import { getFiscalYearMonths } from '../utils/fiscalYearUtils';
 import WagesForm from '../components/WagesForm';
 import WagesImport from '../components/WagesImport';
@@ -14,6 +14,17 @@ function Wages({ year }) {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [editingRow, setEditingRow] = useState(null);
+  const [editingValues, setEditingValues] = useState({});
+  const [currentField, setCurrentField] = useState('netOut');
+
+  const inputRefs = {
+    netOut: useRef(null),
+    invoices: useRef(null),
+    hmrc: useRef(null),
+    nest: useRef(null),
+    deductions: useRef(null)
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -121,6 +132,86 @@ function Wages({ year }) {
     refreshData();
     setShowImport(false);
   };
+
+  const handleRowClick = (monthData, index) => {
+    setEditingRow(index);
+    setEditingValues({
+      netOut: monthData.netOut || 0,
+      invoices: monthData.invoices || 0,
+      hmrc: monthData.hmrc || 0,
+      nest: monthData.nest || 0,
+      deductions: monthData.deductions || 0
+    });
+    setCurrentField('netOut');
+    // Focus will be set by useEffect
+  };
+
+  const handleFieldChange = (field, value) => {
+    setEditingValues(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleKeyDown = (e, currentFieldName) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const fields = ['netOut', 'invoices', 'hmrc', 'nest', 'deductions'];
+      const currentIndex = fields.indexOf(currentFieldName);
+
+      if (currentIndex < fields.length - 1) {
+        // Move to next field
+        const nextField = fields[currentIndex + 1];
+        setCurrentField(nextField);
+        setTimeout(() => inputRefs[nextField].current?.focus(), 0);
+      } else {
+        // Save on last field
+        handleSaveRow();
+      }
+    } else if (e.key === 'Escape') {
+      setEditingRow(null);
+      setEditingValues({});
+    }
+  };
+
+  const handleSaveRow = async () => {
+    if (editingRow === null) return;
+
+    const monthData = data[editingRow];
+    const total =
+      parseFloat(editingValues.netOut || 0) +
+      parseFloat(editingValues.invoices || 0) +
+      parseFloat(editingValues.hmrc || 0) +
+      parseFloat(editingValues.nest || 0) +
+      parseFloat(editingValues.deductions || 0);
+
+    const updatedData = {
+      netOut: parseFloat(editingValues.netOut) || 0,
+      invoices: parseFloat(editingValues.invoices) || 0,
+      hmrc: parseFloat(editingValues.hmrc) || 0,
+      nest: parseFloat(editingValues.nest) || 0,
+      deductions: parseFloat(editingValues.deductions) || 0,
+      total
+    };
+
+    await saveOrUpdateWages(
+      currentUser.uid,
+      year || '2024-25',
+      monthData.month,
+      updatedData
+    );
+
+    setEditingRow(null);
+    setEditingValues({});
+    refreshData();
+  };
+
+  // Auto-focus when editing starts or field changes
+  useEffect(() => {
+    if (editingRow !== null && currentField && inputRefs[currentField]?.current) {
+      inputRefs[currentField].current.focus();
+    }
+  }, [editingRow, currentField]);
 
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">Error: {error}</div>;
@@ -252,15 +343,95 @@ function Wages({ year }) {
             </thead>
             <tbody>
               {data.map((month, index) => (
-                <tr key={index}>
+                <tr
+                  key={index}
+                  onClick={() => editingRow !== index && handleRowClick(month, index)}
+                  style={{
+                    cursor: editingRow !== index ? 'pointer' : 'default',
+                    backgroundColor: editingRow === index ? '#e6f2ff' : 'transparent'
+                  }}
+                >
                   <td>{getMonthName(month.month)}</td>
-                  <td className="currency">{formatCurrency(month.netOut)}</td>
-                  <td className="currency">{formatCurrency(month.invoices)}</td>
-                  <td className={`currency ${month.hmrc >= 0 ? 'negative' : 'positive'}`}>
-                    {formatCurrency(month.hmrc)}
+                  <td className="currency">
+                    {editingRow === index ? (
+                      <input
+                        ref={inputRefs.netOut}
+                        type="number"
+                        step="0.01"
+                        value={editingValues.netOut}
+                        onChange={(e) => handleFieldChange('netOut', e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, 'netOut')}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
+                      />
+                    ) : (
+                      formatCurrency(month.netOut)
+                    )}
                   </td>
-                  <td className="currency">{formatCurrency(month.nest)}</td>
-                  <td className="currency">{formatCurrency(month.deductions)}</td>
+                  <td className="currency">
+                    {editingRow === index ? (
+                      <input
+                        ref={inputRefs.invoices}
+                        type="number"
+                        step="0.01"
+                        value={editingValues.invoices}
+                        onChange={(e) => handleFieldChange('invoices', e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, 'invoices')}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
+                      />
+                    ) : (
+                      formatCurrency(month.invoices)
+                    )}
+                  </td>
+                  <td className={`currency ${month.hmrc >= 0 ? 'negative' : 'positive'}`}>
+                    {editingRow === index ? (
+                      <input
+                        ref={inputRefs.hmrc}
+                        type="number"
+                        step="0.01"
+                        value={editingValues.hmrc}
+                        onChange={(e) => handleFieldChange('hmrc', e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, 'hmrc')}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
+                      />
+                    ) : (
+                      formatCurrency(month.hmrc)
+                    )}
+                  </td>
+                  <td className="currency">
+                    {editingRow === index ? (
+                      <input
+                        ref={inputRefs.nest}
+                        type="number"
+                        step="0.01"
+                        value={editingValues.nest}
+                        onChange={(e) => handleFieldChange('nest', e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, 'nest')}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
+                      />
+                    ) : (
+                      formatCurrency(month.nest)
+                    )}
+                  </td>
+                  <td className="currency">
+                    {editingRow === index ? (
+                      <input
+                        ref={inputRefs.deductions}
+                        type="number"
+                        step="0.01"
+                        value={editingValues.deductions}
+                        onChange={(e) => handleFieldChange('deductions', e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, 'deductions')}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ width: '100%', padding: '0.25rem', textAlign: 'right' }}
+                      />
+                    ) : (
+                      formatCurrency(month.deductions)
+                    )}
+                  </td>
                   <td className="currency">{formatCurrency(month.total)}</td>
                 </tr>
               ))}
