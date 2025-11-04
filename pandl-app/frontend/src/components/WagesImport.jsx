@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { saveOrUpdateWages } from '../firebase/firestoreService';
 
@@ -9,6 +9,21 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
   const [error, setError] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(0);
+  const [uploadedData, setUploadedData] = useState(null);
+  const [modalInvoices, setModalInvoices] = useState('');
+  const [modalDeductions, setModalDeductions] = useState('');
+
+  const invoicesInputRef = useRef(null);
+  const deductionsInputRef = useRef(null);
+
+  // Auto-focus on invoices input when modal shows
+  useEffect(() => {
+    if (showModal && invoicesInputRef.current) {
+      invoicesInputRef.current.focus();
+    }
+  }, [showModal, currentMonthIndex]);
 
   const parseCsvData = (csvText) => {
     const lines = csvText.split('\n');
@@ -157,22 +172,72 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
         }
       }
 
+      // Store uploaded data and show modal for invoices/deductions
+      setUploadedData(previewData);
+      setPreviewData(null);
+      setCurrentMonthIndex(0);
+      setModalInvoices('');
+      setModalDeductions('');
+      setShowModal(true);
+
+      // Store result but don't show it yet
       setResult({
         total: previewData.length,
         success: successCount,
         failed: failCount,
         data: previewData
       });
-
-      setPreviewData(null);
-
-      if (onImportComplete) {
-        onImportComplete();
-      }
     } catch (err) {
       setError(err.message);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleModalKeyDown = (e, isLastField) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isLastField) {
+        handleModalSubmit();
+      } else {
+        deductionsInputRef.current?.focus();
+      }
+    }
+  };
+
+  const handleModalSubmit = async () => {
+    if (!uploadedData || currentMonthIndex >= uploadedData.length) return;
+
+    const currentMonth = uploadedData[currentMonthIndex];
+    const invoices = parseFloat(modalInvoices) || 0;
+    const deductions = parseFloat(modalDeductions) || 0;
+
+    // Update Firebase with invoices and deductions
+    const updatedWageData = {
+      ...currentMonth,
+      invoices,
+      deductions
+    };
+
+    await saveOrUpdateWages(
+      currentUser.uid,
+      year,
+      currentMonth.month,
+      updatedWageData
+    );
+
+    // Move to next month or close modal
+    if (currentMonthIndex < uploadedData.length - 1) {
+      setCurrentMonthIndex(currentMonthIndex + 1);
+      setModalInvoices('');
+      setModalDeductions('');
+    } else {
+      setShowModal(false);
+      setUploadedData(null);
+      setCurrentMonthIndex(0);
+      if (onImportComplete) {
+        onImportComplete();
+      }
     }
   };
 
@@ -350,6 +415,86 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
           <li><strong>Total</strong> = Cost to employer</li>
         </ul>
       </div>
+
+      {/* Modal for entering invoices and deductions */}
+      {showModal && uploadedData && currentMonthIndex < uploadedData.length && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            minWidth: '400px',
+            maxWidth: '500px'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>
+              Add Details for {uploadedData[currentMonthIndex].month}
+            </h3>
+            <p style={{ color: '#718096', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
+              Month {currentMonthIndex + 1} of {uploadedData.length}
+            </p>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                Invoices (£)
+              </label>
+              <input
+                ref={invoicesInputRef}
+                type="number"
+                value={modalInvoices}
+                onChange={(e) => setModalInvoices(e.target.value)}
+                onKeyDown={(e) => handleModalKeyDown(e, false)}
+                step="0.01"
+                placeholder="0.00"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '2px solid #cbd5e0',
+                  borderRadius: '4px',
+                  fontSize: '1rem'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                Deductions (£)
+              </label>
+              <input
+                ref={deductionsInputRef}
+                type="number"
+                value={modalDeductions}
+                onChange={(e) => setModalDeductions(e.target.value)}
+                onKeyDown={(e) => handleModalKeyDown(e, true)}
+                step="0.01"
+                placeholder="0.00"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  border: '2px solid #cbd5e0',
+                  borderRadius: '4px',
+                  fontSize: '1rem'
+                }}
+              />
+            </div>
+
+            <div style={{ fontSize: '0.875rem', color: '#718096', marginBottom: '1rem' }}>
+              Press Enter to continue to the next field, then Enter again to save and continue.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
