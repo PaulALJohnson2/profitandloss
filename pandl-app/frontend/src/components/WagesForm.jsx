@@ -11,7 +11,6 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
   const invoicesRef = useRef(null);
   const hmrcRef = useRef(null);
   const nestRef = useRef(null);
-  const deductionsRef = useRef(null);
 
   // Define fiscal year month order
   const fiscalYearMonths = [
@@ -26,8 +25,7 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
     netOut: '',
     invoices: '',
     hmrc: '',
-    nest: '',
-    deductions: ''
+    nest: ''
   });
 
   const [saving, setSaving] = useState(false);
@@ -57,8 +55,7 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
             netOut: result.data.netOut || '',
             invoices: result.data.invoices || '',
             hmrc: result.data.hmrc || '',
-            nest: result.data.nest || '',
-            deductions: result.data.deductions || ''
+            nest: result.data.nest || ''
           });
           setMessage({ type: 'info', text: 'Existing record found - editing mode' });
         } else {
@@ -70,8 +67,7 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
             netOut: '',
             invoices: '',
             hmrc: '',
-            nest: '',
-            deductions: ''
+            nest: ''
           }));
         }
       }
@@ -105,9 +101,8 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
     const invoices = parseFloat(formData.invoices) || 0;
     const hmrc = parseFloat(formData.hmrc) || 0;
     const nest = parseFloat(formData.nest) || 0;
-    const deductions = parseFloat(formData.deductions) || 0;
 
-    return netOut + invoices + hmrc + nest + deductions;
+    return netOut + invoices + hmrc + nest;
   };
 
   const handleInputChange = (e) => {
@@ -135,7 +130,6 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
         invoices: parseFloat(formData.invoices) || 0,
         hmrc: parseFloat(formData.hmrc) || 0,
         nest: parseFloat(formData.nest) || 0,
-        deductions: parseFloat(formData.deductions) || 0,
         total: calculateTotal()
       };
 
@@ -156,8 +150,7 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
             netOut: '',
             invoices: '',
             hmrc: '',
-            nest: '',
-            deductions: ''
+            nest: ''
           });
           if (onSave) onSave();
         }, 1500);
@@ -316,29 +309,6 @@ function WagesForm({ onSave, year = '2024-25', initialMonth = 'October' }) {
               type="number"
               name="nest"
               value={formData.nest}
-              onChange={handleInputChange}
-              onKeyDown={(e) => handleKeyDown(e, deductionsRef)}
-              step="0.01"
-              placeholder="0.00"
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                border: '1px solid #cbd5e0',
-                borderRadius: '4px',
-                fontSize: '1rem'
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-              Deductions (£)
-            </label>
-            <input
-              ref={deductionsRef}
-              type="number"
-              name="deductions"
-              value={formData.deductions}
               onChange={handleInputChange}
               onKeyDown={(e) => handleKeyDown(e, null)}
               step="0.01"
