@@ -17,6 +17,7 @@ function Wages({ year }) {
   const [editingRow, setEditingRow] = useState(null);
   const [editingValues, setEditingValues] = useState({});
   const [currentField, setCurrentField] = useState('netOut');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const inputRefs = {
     netOut: useRef(null),
@@ -165,16 +166,23 @@ function Wages({ year }) {
         setCurrentField(nextField);
         setTimeout(() => inputRefs[nextField].current?.focus(), 0);
       } else {
-        // Save on last field
-        handleSaveRow();
+        // Show confirmation modal on last field
+        setShowConfirmModal(true);
       }
     } else if (e.key === 'Escape') {
       setEditingRow(null);
       setEditingValues({});
+      setShowConfirmModal(false);
     }
   };
 
-  const handleSaveRow = async () => {
+  const handleCancelEdit = () => {
+    setShowConfirmModal(false);
+    setEditingRow(null);
+    setEditingValues({});
+  };
+
+  const handleConfirmUpdate = async () => {
     if (editingRow === null) return;
 
     const monthData = data[editingRow];
@@ -201,6 +209,7 @@ function Wages({ year }) {
       updatedData
     );
 
+    setShowConfirmModal(false);
     setEditingRow(null);
     setEditingValues({});
     refreshData();
@@ -462,6 +471,117 @@ function Wages({ year }) {
           <strong>Total:</strong> Final wage amount paid
         </p>
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && editingRow !== null && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            minWidth: '500px',
+            maxWidth: '600px'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '1.5rem' }}>
+              Confirm Changes for {getMonthName(data[editingRow].month)}
+            </h3>
+
+            <div style={{ marginBottom: '1.5rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>Net Out:</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                      {formatCurrency(parseFloat(editingValues.netOut) || 0)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>Invoices:</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                      {formatCurrency(parseFloat(editingValues.invoices) || 0)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>HMRC:</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                      {formatCurrency(parseFloat(editingValues.hmrc) || 0)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>Nest:</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                      {formatCurrency(parseFloat(editingValues.nest) || 0)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '0.75rem', fontWeight: '500' }}>Deductions:</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                      {formatCurrency(parseFloat(editingValues.deductions) || 0)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderTop: '2px solid #cbd5e0', fontWeight: 'bold', backgroundColor: '#f7fafc' }}>
+                    <td style={{ padding: '0.75rem' }}>Total:</td>
+                    <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                      {formatCurrency(
+                        (parseFloat(editingValues.netOut) || 0) +
+                        (parseFloat(editingValues.invoices) || 0) +
+                        (parseFloat(editingValues.hmrc) || 0) +
+                        (parseFloat(editingValues.nest) || 0) +
+                        (parseFloat(editingValues.deductions) || 0)
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelEdit}
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#e2e8f0',
+                  color: '#4a5568',
+                  border: '1px solid #cbd5e0',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: '500'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmUpdate}
+                style={{
+                  padding: '0.75rem 2rem',
+                  backgroundColor: '#667eea',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: '500'
+                }}
+              >
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
