@@ -226,15 +226,20 @@ function WagesImport({ year = '2024-25', onImportComplete }) {
       updatedWageData
     );
 
+    const isLastMonth = currentMonthIndex >= uploadedData.length - 1;
+
     // Move to next month or close modal
-    if (currentMonthIndex < uploadedData.length - 1) {
+    if (!isLastMonth) {
       setCurrentMonthIndex(currentMonthIndex + 1);
       setModalInvoices('');
       setModalDeductions('');
     } else {
+      // Close modal after last month
       setShowModal(false);
-      setUploadedData(null);
       setCurrentMonthIndex(0);
+      setModalInvoices('');
+      setModalDeductions('');
+      setUploadedData(null);
       if (onImportComplete) {
         onImportComplete();
       }
